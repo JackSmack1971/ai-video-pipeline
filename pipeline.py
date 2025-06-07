@@ -75,7 +75,11 @@ class ContentPipeline:
     async def _merge(self, media: Dict[str, Any]) -> str:
         voice_file = media["voice"]["filename"] if media["voice"] else None
         return await merge_video_audio(
-            media["video"], media["music"], voice_file, "final_output.mp4"
+            media["video"],
+            media["music"],
+            voice_file,
+            "final_output.mp4",
+            self.config.pipeline.default_video_duration,
         )
 
 

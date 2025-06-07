@@ -20,7 +20,7 @@ async def main() -> None:
     services = create_services(config)
     pipeline = ContentPipeline(config, services)
     try:
-        result = await pipeline.run_music_only("ambient soundtrack")
+        result = await pipeline.run_music_only(config.pipeline.music_only_prompt)
         print(result)
     except Exception as exc:
         print(f"Pipeline failed: {exc}")

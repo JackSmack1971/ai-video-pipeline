@@ -44,7 +44,7 @@ async def test_pipeline_run_single(monkeypatch):
         "voice_generator": DummyVoice(),
     }
 
-    async def fake_merge(video, music, voice, out):
+    async def fake_merge(video, music, voice, out, duration):
         return "final.mp4"
 
     monkeypatch.setattr("pipeline.merge_video_audio", fake_merge)
@@ -78,7 +78,7 @@ async def test_pipeline_run_multiple(monkeypatch):
         "music_generator": DummyMusic(),
     }
 
-    async def fake_merge(video, music, voice, out):
+    async def fake_merge(video, music, voice, out, duration):
         return "final.mp4"
 
     monkeypatch.setattr("pipeline.merge_video_audio", fake_merge)

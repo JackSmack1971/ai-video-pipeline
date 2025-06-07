@@ -7,7 +7,8 @@ from utils import file_operations
 from utils.api_clients import openai_chat
 
 
-async def generate_idea(config: Config, history_file: str = "last_ideas.json") -> Dict[str, str]:
+async def generate_idea(config: Config) -> Dict[str, str]:
+    history_file = config.pipeline.history_file
     base = await file_operations.read_file("prompts/idea_gen.txt")
     try:
         history = json.loads(await file_operations.read_file(history_file))
@@ -25,6 +26,6 @@ async def generate_idea(config: Config, history_file: str = "last_ideas.json") -
     idea = " ".join(idea_part.replace("Idea:", "").replace("*", "").split())
     result = {"idea": idea.strip(), "prompt": prompt_part.strip()}
     history.append(result["idea"])
-    history = history[-6:]
+    history = history[-config.pipeline.max_stored_ideas:]
     await file_operations.save_file(history_file, json.dumps(history).encode())
     return result

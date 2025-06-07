@@ -11,7 +11,11 @@ async def generate_video(image_path: str, prompt: str, config: Config) -> str:
     img = validate_file_path(Path(image_path), [Path("image")])
     prompt = sanitize_prompt(prompt)
     filename = f"video/kling_video_{int(time.time())}.mp4"
-    settings = {"aspect_ratio": "9:16", "cfg_scale": 0.5, "duration": 10}
+    settings = {
+        "aspect_ratio": "9:16",
+        "cfg_scale": 0.5,
+        "duration": config.pipeline.default_video_duration,
+    }
 
     async def call() -> bytes:
         with open(img, "rb") as f:
