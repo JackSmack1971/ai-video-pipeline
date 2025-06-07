@@ -1,20 +1,28 @@
 import asyncio
 from typing import Any, Dict, Optional
 
-import requests
+import aiohttp
 import replicate
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from config import Config
 from utils.api import api_call_with_retry
 
+_session: Optional[aiohttp.ClientSession] = None
+
+
+def _get_session(timeout: int) -> aiohttp.ClientSession:
+    global _session
+    if _session is None or _session.closed:
+        _session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout))
+    return _session
+
 
 async def openai_chat(prompt: str, config: Config, model: str = "gpt-4o") -> Any:
-    client = OpenAI(api_key=config.openai_api_key)
+    client = AsyncOpenAI(api_key=config.openai_api_key, timeout=config.api_timeout)
 
     async def call() -> Any:
-        return await asyncio.to_thread(
-            client.chat.completions.create,
+        return await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -25,11 +33,10 @@ async def openai_chat(prompt: str, config: Config, model: str = "gpt-4o") -> Any
 async def openai_speech(
     text: str, voice: str, instructions: str, config: Config
 ) -> Any:
-    client = OpenAI(api_key=config.openai_api_key)
+    client = AsyncOpenAI(api_key=config.openai_api_key, timeout=config.api_timeout)
 
     async def call() -> Any:
-        return await asyncio.to_thread(
-            client.audio.speech.create,
+        return await client.audio.speech.create(
             model="gpt-4o-mini-tts",
             voice=voice,
             input=text,
@@ -40,29 +47,35 @@ async def openai_speech(
 
 
 async def replicate_run(model: str, inputs: Dict[str, Any], config: Config) -> Any:
+    client = replicate.Client(api_token=config.replicate_api_key)
+
     async def call() -> Any:
-        return await asyncio.to_thread(replicate.run, model, input=inputs)
+        return await replicate.async_run(client, model, input=inputs)
 
     return await api_call_with_retry(model, call, timeout=config.api_timeout)
 
 
 async def http_get(
     url: str, config: Config, headers: Optional[Dict[str, str]] = None
-) -> requests.Response:
-    async def call() -> requests.Response:
-        return await asyncio.to_thread(
-            requests.get, url, headers=headers, timeout=config.api_timeout
-        )
+) -> aiohttp.ClientResponse:
+    session = _get_session(config.api_timeout)
+
+    async def call() -> aiohttp.ClientResponse:
+        resp = await session.get(url, headers=headers)
+        resp.raise_for_status()
+        return resp
 
     return await api_call_with_retry("http_get", call, timeout=config.api_timeout)
 
 
 async def http_post(
     url: str, payload: Dict[str, Any], headers: Dict[str, str], config: Config
-) -> requests.Response:
-    async def call() -> requests.Response:
-        return await asyncio.to_thread(
-            requests.post, url, json=payload, headers=headers, timeout=config.api_timeout
-        )
+) -> aiohttp.ClientResponse:
+    session = _get_session(config.api_timeout)
+
+    async def call() -> aiohttp.ClientResponse:
+        resp = await session.post(url, json=payload, headers=headers)
+        resp.raise_for_status()
+        return resp
 
     return await api_call_with_retry("http_post", call, timeout=config.api_timeout)

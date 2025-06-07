@@ -67,3 +67,24 @@ async def test_pipeline_music_only(monkeypatch):
     result = await pipe.run_music_only("prompt")
     assert result == {"music": "music.mp3"}
 
+
+@pytest.mark.asyncio
+async def test_pipeline_run_multiple(monkeypatch):
+    cfg = Config("sk", "sa", "rep", 1)
+    services: Dict[str, Any] = {
+        "idea_generator": DummyIdea(),
+        "image_generator": DummyImage(),
+        "video_generator": DummyVideo(),
+        "music_generator": DummyMusic(),
+    }
+
+    async def fake_merge(video, music, voice, out):
+        return "final.mp4"
+
+    monkeypatch.setattr("pipeline.merge_video_audio", fake_merge)
+
+    pipe = ContentPipeline(cfg, services)
+    result = await pipe.run_multiple_videos(2)
+    assert len(result) == 2
+    assert all(r["video"] == "final.mp4" for r in result)
+
