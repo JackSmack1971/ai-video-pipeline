@@ -4,5 +4,9 @@ class APIError(Exception):
 class NetworkError(Exception):
     pass
 
-class FileOperationError(Exception):
+class FileError(Exception):
+    """Raised when a file operation fails."""
     pass
+
+# Backwards compatibility
+FileOperationError = FileError

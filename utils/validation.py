@@ -2,7 +2,7 @@ import re
 from pathlib import Path
 from typing import Iterable
 
-from exceptions import FileOperationError
+from exceptions import FileError
 
 
 def sanitize_prompt(prompt: str) -> str:
@@ -21,4 +21,4 @@ def validate_file_path(path: Path, allowed_dirs: Iterable[Path]) -> Path:
             return resolved
         except ValueError:
             continue
-    raise FileOperationError(f"Access to '{path}' is not allowed")
+    raise FileError(f"Access to '{path}' is not allowed")

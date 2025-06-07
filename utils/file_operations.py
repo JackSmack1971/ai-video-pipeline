@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .validation import validate_file_path
-from exceptions import FileOperationError
+from exceptions import FileError
 
 BASE_DIR = Path.cwd()
 
@@ -17,7 +17,7 @@ async def read_file(path: str) -> str:
     try:
         return await asyncio.to_thread(file_path.read_text)
     except OSError as exc:
-        raise FileOperationError(str(exc)) from exc
+        raise FileError(str(exc)) from exc
 
 
 async def save_file(path: str, data: bytes) -> None:
@@ -26,4 +26,4 @@ async def save_file(path: str, data: bytes) -> None:
     try:
         await asyncio.to_thread(file_path.write_bytes, data)
     except OSError as exc:
-        raise FileOperationError(str(exc)) from exc
+        raise FileError(str(exc)) from exc

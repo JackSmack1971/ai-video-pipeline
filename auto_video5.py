@@ -8,7 +8,8 @@ import asyncio
 
 from config import load_config, ConfigError
 from utils import file_operations
-from exceptions import FileOperationError
+from exceptions import FileError
+from services import generators
 from utils.validation import validate_file_path
 
 try:
@@ -24,7 +25,7 @@ Path("video").mkdir(exist_ok=True)
 Path("music").mkdir(exist_ok=True)
 
 from utils import file_operations
-from exceptions import FileOperationError
+from exceptions import FileError
 
 
 def read_file(file_path: str) -> str:
@@ -34,7 +35,7 @@ def read_file(file_path: str) -> str:
 def save_file(file_path: str, content: bytes, mode: str = 'wb') -> None:
     """Save content to a file securely."""
     if mode not in ('wb', 'w'):
-        raise FileOperationError('Unsupported file mode')
+        raise FileError('Unsupported file mode')
     asyncio.run(file_operations.save_file(file_path, content))
 
 def extract_last_frame(video_path, output_path):
@@ -83,154 +84,16 @@ def extract_last_frame(video_path, output_path):
     
     # Release video capture object
     cap.release()
-    
+
     return True
 
-def generate_video(image_path, prompt):
-    """Generate a video using Kling AI."""
-    print(f"Generating video using Kling AI...")
-    
-    # Read video generation settings
-    video_settings = read_file("prompts/video_gen.txt")
-    
-    # Parse video settings
-    settings = {}
-    for line in video_settings.strip().split('\n'):
-        if ':' in line:
-            key, value = line.split(':', 1)
-            settings[key.strip()] = value.strip()
-    
-    # Prepare video generation payload
-    duration = int(settings.get('duration', 10))
-    aspect_ratio = settings.get('aspect_ratio', '16:9')
-    cfg_scale = float(settings.get('cfg_scale', 0.5))
-    negative_prompt = settings.get('negative_prompt', '')
-    
-    # Generate a unique filename
-    timestamp = int(time.time())
-    video_filename = f"video/kling_video_{timestamp}.mp4"
-    
-    img_path = validate_file_path(Path(image_path), [Path("image")])
-    with open(img_path, "rb") as image_file:
-        # Call Kling Video API
-        input_data = {
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
-            "aspect_ratio": aspect_ratio,
-            "cfg_scale": cfg_scale,
-            "duration": duration,
-            "start_image": image_file
-        }
-        
-        output = replicate.run(
-            "kwaivgi/kling-v1.6-standard",
-            input=input_data
-        )
-        
-        # Download and save the video
-        asyncio.run(file_operations.save_file(video_filename, output.read()))
-    
-    print(f"Video generated and saved to {video_filename}")
-    return video_filename
 
-def generate_music(prompt):
-    """Generate music using Sonauto."""
-    print(f"Generating music using Sonauto...")
-    
-    # Read music generation settings - these are example settings, not actual JSON
-    # We'll extract the prompt_strength value from the text
-    music_settings_text = read_file("prompts/music_gen.txt")
-    
-    # Set default values
-    prompt_strength = 2.3
-    
-    # Extract prompt_strength if present in the settings
-    if "prompt_strength" in music_settings_text:
-        try:
-            # Try to extract the float value from the string
-            prompt_strength_line = [line for line in music_settings_text.split('\n') if "prompt_strength" in line][0]
-            prompt_strength_str = prompt_strength_line.split(':', 1)[1].strip()
-            prompt_strength_str = prompt_strength_str.split('(default:', 1)[1].split(')', 1)[0].strip() if '(default:' in prompt_strength_str else prompt_strength_str
-            prompt_strength = float(prompt_strength_str)
-        except:
-            # If parsing fails, use the default
-            prompt_strength = 2.3
-    
-    # Generate a unique filename
-    timestamp = int(time.time())
-    music_filename = f"music/sonauto_music_{timestamp}.mp3"
-    
-    # Prepare the request payload
-    payload = {
-        "prompt": prompt,
-        "tags": ["country music", "female vocals", "acoustic guitar", "cowboy"],
-        "instrumental": False,
-        "prompt_strength": prompt_strength,
-        "output_format": "mp3"
-    }
-    
-    # Call Sonauto API
-    headers = {
-        "Authorization": f"Bearer {CONFIG.sonauto_api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    # Step 1: Start generation
-    response = requests.post(
-        "https://api.sonauto.ai/v1/generations",
-        json=payload,
-        headers=headers
-    )
-    
-    if response.status_code != 200:
-        print(f"Error generating music: {response.text}")
-        return None
-    
-    task_id = response.json()["task_id"]
-    print(f"Music generation started with task ID: {task_id}")
-    
-    # Step 2: Wait for generation to complete
-    status = ""
-    while status != "SUCCESS":
-        time.sleep(5)  # Wait 5 seconds between checks
-        
-        status_response = requests.get(
-            f"https://api.sonauto.ai/v1/generations/status/{task_id}",
-            headers=headers
-        )
-        
-        if status_response.status_code != 200:
-            print(f"Error checking music generation status: {status_response.text}")
-            return None
-        
-        status = status_response.text.strip('"')
-        print(f"Music generation status: {status}")
-        
-        if status == "FAILURE":
-            print("Music generation failed")
-            return None
-        
-        if status == "SUCCESS":
-            # Get the generated music URL
-            result_response = requests.get(
-                f"https://api.sonauto.ai/v1/generations/{task_id}",
-                headers=headers
-            )
-            
-            if result_response.status_code != 200:
-                print(f"Error getting music URL: {result_response.text}")
-                return None
-            
-            song_url = result_response.json()["song_paths"][0]
-            
-            # Download the music file
-            music_response = requests.get(song_url)
-            save_file(music_filename, music_response.content)
-            
-            print(f"Music generated and saved to {music_filename}")
-            break
-    
-    return music_filename
+def generate_video(image_path: str, prompt: str) -> str:
+    return asyncio.run(generators.generate_video(image_path, prompt, CONFIG))
+
+
+def generate_music(prompt: str) -> str:
+    return asyncio.run(generators.generate_music(prompt, CONFIG))
 
 def merge_videos(video_paths, music_path):
     """Merge videos with music using FFMPEG."""
