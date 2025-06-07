@@ -5,3 +5,5 @@ openai
 pathlib
 pytest
 pytest-asyncio
+
+hypothesis
