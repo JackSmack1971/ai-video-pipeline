@@ -17,9 +17,9 @@ async def _wait_for_music(task_id: str, headers: Dict[str, str], config: Config)
             config,
             headers,
         )
-        if status.status_code != 200:
-            raise APIError(status.text)
-        state = status.text.strip('"')
+        if status.status != 200:
+            raise APIError(await status.text())
+        state = (await status.text()).strip('"')
         if state == "FAILURE":
             raise APIError("Music generation failed")
         if state == "SUCCESS":
@@ -28,9 +28,10 @@ async def _wait_for_music(task_id: str, headers: Dict[str, str], config: Config)
                 config,
                 headers,
             )
-            if result.status_code != 200:
-                raise APIError(result.text)
-            return result.json()["song_paths"][0]
+            if result.status != 200:
+                raise APIError(await result.text())
+            data = await result.json()
+            return data["song_paths"][0]
     raise NetworkError("Music generation timed out")
 
 
@@ -49,8 +50,9 @@ async def generate_music(prompt: str, config: Config) -> str:
         "Content-Type": "application/json",
     }
     resp = await http_post("https://api.sonauto.ai/v1/generations", payload, headers, config)
-    task_id = resp.json()["task_id"]
+    data = await resp.json()
+    task_id = data["task_id"]
     url = await _wait_for_music(task_id, headers, config)
     song = await http_get(url, config, None)
-    await file_operations.save_file(filename, song.content)
+    await file_operations.save_file(filename, await song.read())
     return filename

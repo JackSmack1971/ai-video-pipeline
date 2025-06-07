@@ -47,17 +47,29 @@ class ContentPipeline:
         video = await self._merge(media)
         return {"idea": idea["idea"], "video": video}
 
+    async def run_multiple_videos(self, count: int) -> list[Dict[str, str]]:
+        tasks = [self.run_single_video() for _ in range(count)]
+        return await asyncio.gather(*tasks)
+
     async def run_music_only(self, prompt: str) -> Dict[str, str]:
         music = await self.music_service.generate(prompt)
         return {"music": music}
 
     async def _generate_media(self, idea: Dict[str, str]) -> Dict[str, Any]:
-        image_path = await self.image_service.generate(idea["prompt"])
-        video_path = await self.video_service.generate(image_path, idea["prompt"])
-        music_path = await self.music_service.generate(idea["idea"])
-        voice = None
-        if self.voice_service:
-            voice = await self.voice_service.generate(idea["idea"])
+        img_task = asyncio.create_task(self.image_service.generate(idea["prompt"]))
+        music_task = asyncio.create_task(self.music_service.generate(idea["idea"]))
+        voice_task = (
+            asyncio.create_task(self.voice_service.generate(idea["idea"]))
+            if self.voice_service
+            else None
+        )
+        image_path = await img_task
+        video_task = asyncio.create_task(
+            self.video_service.generate(image_path, idea["prompt"])
+        )
+        video_path = await video_task
+        music_path = await music_task
+        voice = await voice_task if voice_task else None
         return {"video": video_path, "music": music_path, "voice": voice}
 
     async def _merge(self, media: Dict[str, Any]) -> str:

@@ -13,15 +13,14 @@ async def main() -> None:
     except ConfigError as exc:
         raise SystemExit(str(exc))
 
-    os.environ["REPLICATE_API_TOKEN"] = config.replicate_api_key
     for d in ["image", "video", "music", "voice"]:
         Path(d).mkdir(exist_ok=True)
 
     services = create_services(config)
     pipeline = ContentPipeline(config, services)
     try:
-        result = await pipeline.run_single_video()
-        print(result)
+        results = await pipeline.run_multiple_videos(5)
+        print(results)
     except Exception as exc:
         print(f"Pipeline failed: {exc}")
 

@@ -20,5 +20,5 @@ async def generate_image(prompt: str, config: Config) -> str:
     }
     url = await replicate_run("black-forest-labs/flux-pro", inputs, config)
     resp = await http_get(url, config)
-    await file_operations.save_file(filename, resp.content)
+    await file_operations.save_file(filename, await resp.read())
     return filename
