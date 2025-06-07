@@ -19,7 +19,7 @@ async def main() -> None:
     services = create_services(config)
     pipeline = ContentPipeline(config, services)
     try:
-        results = await pipeline.run_multiple_videos(5)
+        results = await pipeline.run_multiple_videos(config.pipeline.video_batch_large)
         print(results)
     except Exception as exc:
         print(f"Pipeline failed: {exc}")

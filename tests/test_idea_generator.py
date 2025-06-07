@@ -11,6 +11,7 @@ from config import Config
 @pytest.mark.asyncio
 async def test_generate_idea(monkeypatch, tmp_path: Path):
     cfg = Config("sk", "sa", "rep", 1)
+    cfg.pipeline.history_file = str(tmp_path / "hist.json")
 
     async def fake_read(path: str) -> str:
         return "[]"
@@ -30,6 +31,6 @@ async def test_generate_idea(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(idea_generator.file_operations, "save_file", fake_save)
     monkeypatch.setattr(idea_generator, "openai_chat", fake_chat)
 
-    result = await idea_generator.generate_idea(cfg, str(tmp_path / "hist.json"))
+    result = await idea_generator.generate_idea(cfg)
     assert result["idea"] == "Test"
     assert result["prompt"] == "do it"
