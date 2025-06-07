@@ -1,8 +1,6 @@
 import os
 import time
-import requests
 from pathlib import Path
-import replicate
 import cv2
 import asyncio
 
