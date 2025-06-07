@@ -8,3 +8,6 @@ pytest-asyncio
 
 hypothesis
 prometheus_client
+fastapi
+httpx
+
