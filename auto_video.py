@@ -11,7 +11,8 @@ from config import load_config, ConfigError
 from utils import file_operations
 from utils.validation import sanitize_prompt
 from utils.api import api_call_with_retry
-from exceptions import APIError, FileOperationError
+from exceptions import APIError, FileError
+from services import generators
 
 try:
     CONFIG = load_config()
@@ -36,7 +37,7 @@ def read_file(file_path: str) -> str:
 def save_file(file_path: str, content: bytes, mode: str = 'wb') -> None:
     """Securely save content to a file."""
     if mode not in ('wb', 'w'):
-        raise FileOperationError('Unsupported file mode')
+        raise FileError('Unsupported file mode')
     asyncio.run(file_operations.save_file(file_path, content))
 
 def load_last_ideas():
@@ -46,7 +47,7 @@ def load_last_ideas():
     try:
         data = asyncio.run(file_operations.read_file(LAST_IDEAS_FILE))
         return json.loads(data)
-    except (json.JSONDecodeError, FileOperationError):
+    except (json.JSONDecodeError, FileError):
         return []
 
 def save_idea_to_history(idea):
@@ -132,336 +133,21 @@ def generate_idea():
     
     return {"idea": idea, "prompt": prompt}
 
-def generate_image(prompt):
-    """Step 2: Generate an image using Flux AI."""
-    print(f"Step 2: Generating image using Flux Image AI with prompt: {prompt[:50]}...")
-    
-    # Check if prompt is empty or None
-    if not prompt or prompt.strip() == "":
-        print("Warning: Empty prompt detected. Using a fallback prompt.")
-        prompt = "A mysterious atmospheric scene with dramatic lighting and cinematic composition."
-    
-    # Generate a unique filename with png extension
-    timestamp = int(time.time())
-    image_filename = f"image/flux_image_{timestamp}.png"
-    
-    # Call Flux Image API with 9:16 aspect ratio dimensions
-    # and explicitly requesting PNG output
-    input_data = {
-        "width": 768,
-        "height": 1344,
-        "prompt": prompt,
-        "output_format": "png",  # Explicitly request PNG format
-        "aspect_ratio": "9:16",  # Explicitly set aspect ratio to 9:16
-        "safety_tolerance": 6    # Set safety tolerance to maximum (6)
-    }
-    
-    try:
-        output = replicate.run(
-            "black-forest-labs/flux-pro",
-            input=input_data
-        )
-        
-        # Download and save the image
-        response = requests.get(output)
-        save_file(image_filename, response.content)
-        
-        print(f"Image generated and saved to {image_filename}")
-        return image_filename
-    except Exception as e:
-        print(f"Error during image generation: {str(e)}")
-        print("Trying again with simplified prompt...")
-        
-        # Try again with a simplified prompt
-        simplified_prompt = prompt.split('.')[0] if '.' in prompt else prompt[:100]
-        input_data["prompt"] = simplified_prompt
-        
-        try:
-            output = replicate.run(
-                "black-forest-labs/flux-pro",
-                input=input_data
-            )
-            
-            # Download and save the image
-            response = requests.get(output)
-            save_file(image_filename, response.content)
-            
-            print(f"Image generated and saved to {image_filename}")
-            return image_filename
-        except Exception as e2:
-            print(f"Second attempt failed: {str(e2)}")
-            raise
+def generate_image(prompt: str) -> str:
+    """Generate an image using the service layer."""
+    return asyncio.run(generators.generate_image(prompt, CONFIG))
 
-def generate_video(image_path, prompt):
-    """Step 3: Generate a video using Kling AI."""
-    print(f"Step 3: Generating video using Kling AI...")
-    
-    # Read video generation settings
-    video_settings = read_file("prompts/video_gen.txt")
-    
-    # Parse video settings
-    settings = {}
-    for line in video_settings.strip().split('\n'):
-        if ':' in line:
-            key, value = line.split(':', 1)
-            settings[key.strip()] = value.strip()
-    
-    # Prepare video generation payload
-    duration = int(settings.get('duration', 10))
-    aspect_ratio = settings.get('aspect_ratio', '9:16')
-    cfg_scale = float(settings.get('cfg_scale', 0.5))
-    negative_prompt = settings.get('negative_prompt', '')
-    
-    # Generate a unique filename
-    timestamp = int(time.time())
-    video_filename = f"video/kling_video_{timestamp}.mp4"
-    
-    # Open the image for upload
-    with open(image_path, "rb") as image_file:
-        # Call Kling Video API
-        input_data = {
-            "prompt": prompt,
-            "negative_prompt": negative_prompt,
-            "aspect_ratio": aspect_ratio,
-            "cfg_scale": cfg_scale,
-            "duration": duration,
-            "start_image": image_file
-        }
-        
-        output = replicate.run(
-            "kwaivgi/kling-v1.6-standard",
-            input=input_data
-        )
-        
-        # Download and save the video
-        with open(video_filename, "wb") as file:
-            file.write(output.read())
-    
-    print(f"Video generated and saved to {video_filename}")
-    return video_filename
+def generate_video(image_path: str, prompt: str) -> str:
+    """Generate a video using the service layer."""
+    return asyncio.run(generators.generate_video(image_path, prompt, CONFIG))
 
-def generate_music(idea):
-    """Step 4: Generate music using Sonauto."""
-    print(f"Step 4: Generating music using Sonauto...")
-    
-    # Read music generation settings - these are example settings, not actual JSON
-    # We'll extract the prompt_strength value from the text
-    music_settings_text = read_file("prompts/music_gen.txt")
-    
-    # Set default values
-    prompt_strength = 2.3
-    
-    # Extract prompt_strength if present in the settings
-    if "prompt_strength" in music_settings_text:
-        try:
-            # Try to extract the float value from the string
-            prompt_strength_line = [line for line in music_settings_text.split('\n') if "prompt_strength" in line][0]
-            prompt_strength_str = prompt_strength_line.split(':', 1)[1].strip()
-            prompt_strength_str = prompt_strength_str.split('(default:', 1)[1].split(')', 1)[0].strip() if '(default:' in prompt_strength_str else prompt_strength_str
-            prompt_strength = float(prompt_strength_str)
-        except:
-            # If parsing fails, use the default
-            prompt_strength = 2.3
-    
-    # Prepare the prompt for music generation
-    music_prompt = idea
-    
-    # Generate a unique filename
-    timestamp = int(time.time())
-    music_filename = f"music/sonauto_music_{timestamp}.mp3"
-    
-    # Prepare the request payload
-    payload = {
-        "prompt": music_prompt,
-        "tags": ["ethereal", "chants", "folklore", "ancient", "spiritual", "ambient", "ritualistic"],
-        "instrumental": True,
-        "prompt_strength": prompt_strength,
-        "output_format": "mp3"
-    }
-    
-    # Call Sonauto API
-    headers = {
-        "Authorization": f"Bearer {CONFIG.sonauto_api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    # Step 1: Start generation
-    response = requests.post(
-        "https://api.sonauto.ai/v1/generations",
-        json=payload,
-        headers=headers
-    )
-    
-    if response.status_code != 200:
-        print(f"Error generating music: {response.text}")
-        return None
-    
-    task_id = response.json()["task_id"]
-    print(f"Music generation started with task ID: {task_id}")
-    
-    # Step 2: Wait for generation to complete
-    status = ""
-    while status != "SUCCESS":
-        time.sleep(5)  # Wait 5 seconds between checks
-        
-        status_response = requests.get(
-            f"https://api.sonauto.ai/v1/generations/status/{task_id}",
-            headers=headers
-        )
-        
-        if status_response.status_code != 200:
-            print(f"Error checking music generation status: {status_response.text}")
-            return None
-        
-        status = status_response.text.strip('"')
-        print(f"Music generation status: {status}")
-        
-        if status == "FAILURE":
-            print("Music generation failed")
-            return None
-        
-        if status == "SUCCESS":
-            # Get the generated music URL
-            result_response = requests.get(
-                f"https://api.sonauto.ai/v1/generations/{task_id}",
-                headers=headers
-            )
-            
-            if result_response.status_code != 200:
-                print(f"Error getting music URL: {result_response.text}")
-                return None
-            
-            song_url = result_response.json()["song_paths"][0]
-            
-            # Download the music file
-            music_response = requests.get(song_url)
-            save_file(music_filename, music_response.content)
-            
-            print(f"Music generated and saved to {music_filename}")
-            break
-    
-    return music_filename
+def generate_music(idea: str) -> str:
+    """Generate music using the service layer."""
+    return asyncio.run(generators.generate_music(idea, CONFIG))
 
-def generate_voice_dialog(idea):
-    """Generate a short dialog that fits the idea using OpenAI's GPT-4o model and TTS."""
-    print(f"Generating voice dialog for idea: {idea[:50]}...")
-    
-    # Read voice examples to use as references
-    voice_examples = read_file("prompts/voice_examples.txt")
-    
-    # Create prompt for generating the dialog with clearer instructions
-    dialog_prompt = f"""
-    Create a short, engaging single line of dialog question (maximum 15 words) for the following idea:
-
-    Idea: 
-    \n\n
-    {idea}
-    \n\n
-    This short dialog question should be something a character might say when experiencing this scene.
-    It should be brief, impactful, like the examples:
-     "I wonder what happened here...?", "What could be over there...?", "I wonder where Queen Cleopatra is buried...?" or "What is that sound...?"
-
-    In the dialog question, avoid cringe cliche terms like "secrets", "unveil", "moon", "breath etc. Please be creative and inspired by the idea.
-    
-    Also determine whether this dialog questions would best be spoken by a male voice (Ballad) or female voice (Shimmer) based on the archetype of the idea.
-    
-    IMPORTANT: You MUST provide detailed voice instructions that describe how the line should be delivered.
-    
-    Here are some examples of good voice instructions:
-
-    {voice_examples}
-
-    Create detailed voice instructions similar to these examples that fit the idea and the dialog.
-
-    Your response MUST follow this exact format:
-    Voice: [Ballad or Shimmer] (based on the archetype of the idea)
-    Dialog: [the dialog question]
-    Instructions: [detailed speaking instructions including tone, emotion, pacing, emphasis, etc.]
-    """
-    
-    # Call OpenAI API
-    client = OpenAI(api_key=CONFIG.openai_api_key)
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "user",
-                "content": dialog_prompt
-            }
-        ]
-    )
-    
-    result = response.choices[0].message.content
-    print(f"Raw result from GPT:\n{result}")  # Debug line
-    
-    # Parse the result with more robust handling
-    voice = "onyx"  # Default male voice
-    dialog = ""
-    instructions = "Speak naturally with appropriate emotion."
-    
-    # Extract values from the response with more robust handling
-    lines = result.split('\n')
-    for i, line in enumerate(lines):
-        if line.lower().startswith("voice:"):
-            voice_value = line.replace("Voice:", "", 1).strip().lower()
-            # Only accept onyx or shimmer
-            if "shimmer" in voice_value:
-                voice = "shimmer"
-                
-        elif line.lower().startswith("dialog:"):
-            dialog = line.replace("Dialog:", "", 1).strip()
-            # Remove extra quotes if present
-            if dialog.startswith('"') and dialog.endswith('"'):
-                dialog = dialog[1:-1]
-                
-        elif line.lower().startswith("instructions:"):
-            # Grab the instructions part, which might span multiple lines
-            instructions_parts = [line.replace("Instructions:", "", 1).strip()]
-            
-            # Check if there are more lines after "Instructions:" that are part of the instructions
-            for j in range(i+1, len(lines)):
-                next_line = lines[j].strip()
-                # Stop if we hit a new section
-                if next_line.lower().startswith("voice:") or next_line.lower().startswith("dialog:"):
-                    break
-                if next_line:  # Only add non-empty lines
-                    instructions_parts.append(next_line)
-                    
-            instructions = " ".join(instructions_parts).strip()
-    
-    # Fallback if instructions are still empty
-    if not instructions or instructions.strip() == "":
-        print("Warning: No instructions detected. Using fallback instructions.")
-        instructions = "Speak with emotion and emphasis appropriate to the scene, maintaining a natural cadence and clear articulation."
-    
-    print(f"Generated dialog: '{dialog}' with voice '{voice}'")
-    print(f"Voice instructions: {instructions}")
-    
-    # Ensure voice directory exists
-    Path("voice").mkdir(exist_ok=True)
-    
-    # Generate a unique filename
-    timestamp = int(time.time())
-    voice_filename = f"voice/openai_voice_{timestamp}.mp3"
-    
-    # Generate the speech using OpenAI TTS
-    response = client.audio.speech.create(
-        model="gpt-4o-mini-tts",
-        voice=voice,
-        input=dialog,
-        instructions=instructions
-    )
-    
-    # Save the audio file
-    response.stream_to_file(voice_filename)
-    
-    print(f"Voice dialog generated and saved to {voice_filename}")
-    return {
-        "filename": voice_filename, 
-        "dialog": dialog, 
-        "voice": voice, 
-        "instructions": instructions
-    }
+def generate_voice_dialog(idea: str) -> dict:
+    """Generate voice dialog using the service layer."""
+    return asyncio.run(generators.generate_voice_dialog(idea, CONFIG))
 
 def create_final_video(video_path, music_path, idea, voice_data=None):
     """Merge video with music and voice dialog using FFMPEG."""

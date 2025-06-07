@@ -8,7 +8,11 @@ import asyncio
 
 from config import load_config, ConfigError
 from utils import file_operations
-from exceptions import FileOperationError
+from exceptions import FileError
+from services import generators
+
+def generate_music(idea: str) -> str:
+    return asyncio.run(generators.generate_music(idea, CONFIG))
 
 try:
     CONFIG = load_config()
@@ -22,107 +26,8 @@ def read_file(file_path: str) -> str:
 def save_file(file_path: str, content: bytes, mode: str = 'wb') -> None:
     """Save content to a file securely."""
     if mode not in ('wb', 'w'):
-        raise FileOperationError('Unsupported file mode')
+        raise FileError('Unsupported file mode')
     asyncio.run(file_operations.save_file(file_path, content))
-
-def generate_music(idea):
-    """Generate music using Sonauto."""
-    print(f"Generating music using Sonauto...")
-    
-    # Read music generation settings
-    music_settings_text = read_file("prompts/music_gen.txt")
-    
-    # Set default values
-    prompt_strength = 2.3
-    
-    # Extract prompt_strength if present in the settings
-    if "prompt_strength" in music_settings_text:
-        try:
-            prompt_strength_line = [line for line in music_settings_text.split('\n') if "prompt_strength" in line][0]
-            prompt_strength_str = prompt_strength_line.split(':', 1)[1].strip()
-            prompt_strength_str = prompt_strength_str.split('(default:', 1)[1].split(')', 1)[0].strip() if '(default:' in prompt_strength_str else prompt_strength_str
-            prompt_strength = float(prompt_strength_str)
-        except:
-            prompt_strength = 2.3
-    
-    # Prepare the prompt for music generation
-    music_prompt = idea
-    
-    # Generate a unique filename
-    timestamp = int(time.time())
-    music_filename = f"music/sonauto_music_{timestamp}.mp3"
-    
-    # Prepare the request payload with fixed tags
-    payload = {
-        "prompt": music_prompt,
-        "tags": ["gregorian chant","horror", "religious"],
-        "instrumental": True,
-        "prompt_strength": prompt_strength,
-        "output_format": "mp3"
-    }
-    
-    # Call Sonauto API
-    headers = {
-        "Authorization": f"Bearer {CONFIG.sonauto_api_key}",
-        "Content-Type": "application/json"
-    }
-    
-    # Step 1: Start generation
-    response = requests.post(
-        "https://api.sonauto.ai/v1/generations",
-        json=payload,
-        headers=headers
-    )
-    
-    if response.status_code != 200:
-        print(f"Error generating music: {response.text}")
-        return None
-    
-    task_id = response.json()["task_id"]
-    print(f"Music generation started with task ID: {task_id}")
-    
-    # Step 2: Wait for generation to complete
-    status = ""
-    while status != "SUCCESS":
-        time.sleep(5)  # Wait 5 seconds between checks
-        
-        status_response = requests.get(
-            f"https://api.sonauto.ai/v1/generations/status/{task_id}",
-            headers=headers
-        )
-        
-        if status_response.status_code != 200:
-            print(f"Error checking music generation status: {status_response.text}")
-            return None
-        
-        status = status_response.text.strip('"')
-        print(f"Music generation status: {status}")
-        
-        if status == "FAILURE":
-            print("Music generation failed")
-            return None
-        
-        if status == "SUCCESS":
-            # Get the generated music URL
-            result_response = requests.get(
-                f"https://api.sonauto.ai/v1/generations/{task_id}",
-                headers=headers
-            )
-            
-            if result_response.status_code != 200:
-                print(f"Error getting music URL: {result_response.text}")
-                return None
-            
-            song_url = result_response.json()["song_paths"][0]
-            
-            # Download the music file
-            music_response = requests.get(song_url)
-            save_file(music_filename, music_response.content)
-            
-            print(f"Music generated and saved to {music_filename}")
-            break
-    
-    return music_filename
 
 def merge_videos(video_paths, music_path, voice_path):
     """Merge videos with music and voice dialog using FFMPEG."""

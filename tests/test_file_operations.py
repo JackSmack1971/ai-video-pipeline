@@ -6,7 +6,7 @@ import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 from utils import file_operations
-from exceptions import FileOperationError
+from exceptions import FileError
 
 
 @pytest.mark.asyncio
@@ -19,5 +19,5 @@ async def test_read_write(tmp_path: Path):
 
 @pytest.mark.asyncio
 async def test_invalid_path(tmp_path: Path):
-    with pytest.raises(FileOperationError):
+    with pytest.raises(FileError):
         await file_operations.read_file('/etc/passwd')
