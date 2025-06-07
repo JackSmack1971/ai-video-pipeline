@@ -1,13 +1,10 @@
 import os
-import base64
-import time
 import json
-import requests
 from pathlib import Path
 import asyncio
-import replicate
+from utils import file_operations
 
-from services import generators
+from services import generators, idea_generator
 
 from config import load_config, ConfigError
 
@@ -28,14 +25,12 @@ LAST_IDEAS_FILE = "last_ideas2.json"
 MAX_STORED_IDEAS = 6
 
 def read_file(file_path):
-    """Read the content of a file."""
-    with open(file_path, 'r') as file:
-        return file.read()
+    """Read file content using shared utilities."""
+    return asyncio.run(file_operations.read_file(file_path))
 
 def save_file(file_path, content, mode='wb'):
-    """Save content to a file."""
-    with open(file_path, mode) as file:
-        file.write(content)
+    """Save content using shared utilities."""
+    return asyncio.run(file_operations.save_file(file_path, content))
 
 def load_last_ideas():
     """Load the list of recently generated ideas."""
@@ -64,90 +59,10 @@ def save_idea_to_history(idea):
         json.dump(ideas, file)
 
 def generate_idea():
-    """Step 1: Generate an idea using OpenAI API, avoiding recent ideas."""
-    print("Step 1: Generating idea using OpenAI API...")
-    
-    # Read prompt from idea_gen.txt
-    idea_prompt = read_file("prompts/idea_gen2.txt")
-    
-    # Load recently used ideas
-    last_ideas = load_last_ideas()
-    
-    # Add context about avoiding recent ideas if there are any
-    if last_ideas:
-        avoid_context = "\n\nPlease avoid generating ideas similar to these recently created ones:\n"
-        for i, idea in enumerate(last_ideas):
-            avoid_context += f"{i+1}. {idea}\n"
-        
-        # Append the avoidance context to the prompt
-        idea_prompt += avoid_context
-    
-    # Call OpenAI API
-    client = OpenAI(api_key=CONFIG.openai_api_key)
-    response = client.chat.completions.create(
-        model="o3-mini",
-        messages=[
-            {
-                "role": "user",
-                "content": idea_prompt
-            }
-        ]
-    )
-    
-    # Parse the result to get idea and prompt
-    result = response.choices[0].message.content
-    
-    # Extract idea and prompt parts
-    idea_part = ""
-    prompt_part = ""
-    
-    # Check if result contains "FACT:" and "PROMPT:" structure
-    if "FACT:" in result and "PROMPT:" in result:
-        # Format: "## X. Title\nFACT: ...\nPROMPT: ..."
-        idea_parts = result.split("PROMPT:")
-        idea_part = idea_parts[0].strip()
-        prompt_part = idea_parts[1].strip() if len(idea_parts) > 1 else ""
-    else:
-        # Try the older format: "Idea: ...\nPrompt: ..."
-        parts = result.split("Prompt:")
-        idea_part = parts[0].replace("Idea:", "").strip()
-        prompt_part = parts[1].strip() if len(parts) > 1 else ""
-    
-    # Clean up idea text
-    # Remove "Example X:" if present
-    if "Example" in idea_part and ":" in idea_part.split("Example")[1]:
-        try:
-            example_parts = idea_part.split(":", 1)
-            if len(example_parts) > 1:
-                idea_part = example_parts[1].strip()
-        except:
-            pass
-    
-    # Remove markdown formatting
-    idea_part = idea_part.replace('*', '')
-    idea_part = ' '.join(idea_part.split())
-    
-    # If prompt is empty, extract it from the idea
-    if not prompt_part or prompt_part.strip() == "":
-        if "Point of view" in idea_part:
-            # Try to extract the prompt directly from the idea text
-            prompt_index = idea_part.find("Point of view")
-            if prompt_index > 0:
-                prompt_part = idea_part[prompt_index:].strip()
-                print("Extracted prompt from idea text.")
-    
-    # Final fallback - if prompt is still empty, use the idea as the prompt
-    if not prompt_part or prompt_part.strip() == "":
-        prompt_part = f"A mystical, cinematic scene depicting {idea_part}"
-        print("Using fallback prompt based on idea.")
-    
-    print(f"Generated Idea: {idea_part}")
-    print(f"Generated Prompt: {prompt_part}")
-    
-    # Save the new idea to history
-    save_idea_to_history(idea_part)
-    
-    return {"idea": idea_part, "prompt": prompt_part}
+    """Generate an idea using the shared service."""
+    result = asyncio.run(idea_generator.generate_idea(CONFIG, LAST_IDEAS_FILE))
+    save_idea_to_history(result["idea"])
+    return result
 
 def generate_second_prompt(idea, first_prompt):
     """Generate a second complementary prompt for the same idea."""

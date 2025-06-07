@@ -1,9 +1,6 @@
 import os
-import time
-import requests
 import json
 from pathlib import Path
-from openai import OpenAI
 import asyncio
 
 from config import load_config, ConfigError
