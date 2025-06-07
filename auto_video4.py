@@ -3,24 +3,27 @@ import time
 import requests
 import json
 from pathlib import Path
-from dotenv import load_dotenv
 from openai import OpenAI
+import asyncio
 
-# Load environment variables from .env file
-load_dotenv()
+from config import load_config, ConfigError
+from utils import file_operations
+from exceptions import FileOperationError
 
-# Get API key from environment variable
-SONAUTO_API_KEY = os.getenv("SONAUTO_API_KEY")
+try:
+    CONFIG = load_config()
+except ConfigError as exc:
+    raise SystemExit(str(exc))
 
-def read_file(file_path):
-    """Read the content of a file."""
-    with open(file_path, 'r') as file:
-        return file.read()
+def read_file(file_path: str) -> str:
+    """Read the content of a file securely."""
+    return asyncio.run(file_operations.read_file(file_path))
 
-def save_file(file_path, content, mode='wb'):
-    """Save content to a file."""
-    with open(file_path, mode) as file:
-        file.write(content)
+def save_file(file_path: str, content: bytes, mode: str = 'wb') -> None:
+    """Save content to a file securely."""
+    if mode not in ('wb', 'w'):
+        raise FileOperationError('Unsupported file mode')
+    asyncio.run(file_operations.save_file(file_path, content))
 
 def generate_music(idea):
     """Generate music using Sonauto."""
@@ -60,7 +63,7 @@ def generate_music(idea):
     
     # Call Sonauto API
     headers = {
-        "Authorization": f"Bearer {SONAUTO_API_KEY}",
+        "Authorization": f"Bearer {CONFIG.sonauto_api_key}",
         "Content-Type": "application/json"
     }
     
@@ -149,9 +152,9 @@ def merge_videos(video_paths, music_path, voice_path):
     output_filename = "final_output.mp4"
     
     # Create a temporary file for concatenation
-    with open("temp_list.txt", "w") as f:
-        for video_path in video_paths:
-            f.write(f"file '{video_path}'\n")
+    temp_list = "temp_list.txt"
+    content = "".join([f"file '{p}'\n" for p in video_paths])
+    asyncio.run(file_operations.save_file(temp_list, content.encode()))
     
     # First concatenate the videos
     concat_output = "temp_concat.mp4"

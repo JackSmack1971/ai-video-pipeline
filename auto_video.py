@@ -4,19 +4,21 @@ import time
 import json
 import requests
 from pathlib import Path
-from dotenv import load_dotenv
+import asyncio
 import replicate
 
-# Load environment variables from .env file
-load_dotenv()
+from config import load_config, ConfigError
+from utils import file_operations
+from utils.validation import sanitize_prompt
+from utils.api import api_call_with_retry
+from exceptions import APIError, FileOperationError
 
-# Get API keys from environment variables
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-SONAUTO_API_KEY = os.getenv("SONAUTO_API_KEY")
-REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY")
+try:
+    CONFIG = load_config()
+except ConfigError as exc:
+    raise SystemExit(str(exc))
 
-# Set Replicate API key for the replicate client
-os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_KEY
+os.environ["REPLICATE_API_TOKEN"] = CONFIG.replicate_api_key
 
 # Ensure output directories exist
 Path("image").mkdir(exist_ok=True)
@@ -27,26 +29,25 @@ Path("music").mkdir(exist_ok=True)
 LAST_IDEAS_FILE = "last_ideas.json"
 MAX_STORED_IDEAS = 6
 
-def read_file(file_path):
-    """Read the content of a file."""
-    with open(file_path, 'r') as file:
-        return file.read()
+def read_file(file_path: str) -> str:
+    """Read file content using secure utilities."""
+    return asyncio.run(file_operations.read_file(file_path))
 
-def save_file(file_path, content, mode='wb'):
-    """Save content to a file."""
-    with open(file_path, mode) as file:
-        file.write(content)
+def save_file(file_path: str, content: bytes, mode: str = 'wb') -> None:
+    """Securely save content to a file."""
+    if mode not in ('wb', 'w'):
+        raise FileOperationError('Unsupported file mode')
+    asyncio.run(file_operations.save_file(file_path, content))
 
 def load_last_ideas():
     """Load the list of recently generated ideas."""
-    if os.path.exists(LAST_IDEAS_FILE):
-        try:
-            with open(LAST_IDEAS_FILE, 'r') as file:
-                return json.load(file)
-        except json.JSONDecodeError:
-            # If the file exists but is corrupted, return an empty list
-            return []
-    return []
+    if not os.path.exists(LAST_IDEAS_FILE):
+        return []
+    try:
+        data = asyncio.run(file_operations.read_file(LAST_IDEAS_FILE))
+        return json.loads(data)
+    except (json.JSONDecodeError, FileOperationError):
+        return []
 
 def save_idea_to_history(idea):
     """Save an idea to the history file, keeping only the most recent ones."""
@@ -60,8 +61,8 @@ def save_idea_to_history(idea):
         ideas = ideas[-MAX_STORED_IDEAS:]
     
     # Save the updated list
-    with open(LAST_IDEAS_FILE, 'w') as file:
-        json.dump(ideas, file)
+    content = json.dumps(ideas)
+    asyncio.run(file_operations.save_file(LAST_IDEAS_FILE, content.encode()))
 
 def generate_idea():
     """Step 1: Generate an idea using OpenAI API, avoiding recent ideas."""
@@ -83,7 +84,7 @@ def generate_idea():
         idea_prompt += avoid_context
     
     # Call OpenAI API
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=CONFIG.openai_api_key)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -280,7 +281,7 @@ def generate_music(idea):
     
     # Call Sonauto API
     headers = {
-        "Authorization": f"Bearer {SONAUTO_API_KEY}",
+        "Authorization": f"Bearer {CONFIG.sonauto_api_key}",
         "Content-Type": "application/json"
     }
     
@@ -379,7 +380,7 @@ def generate_voice_dialog(idea):
     """
     
     # Call OpenAI API
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=CONFIG.openai_api_key)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
