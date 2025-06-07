@@ -4,19 +4,17 @@ import time
 import json
 import requests
 from pathlib import Path
-from dotenv import load_dotenv
+import asyncio
 import replicate
 
-# Load environment variables from .env file
-load_dotenv()
+from config import load_config, ConfigError
 
-# Get API keys from environment variables
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-SONAUTO_API_KEY = os.getenv("SONAUTO_API_KEY")
-REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY")
+try:
+    CONFIG = load_config()
+except ConfigError as exc:
+    raise SystemExit(str(exc))
 
-# Set Replicate API key for the replicate client
-os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_KEY
+os.environ["REPLICATE_API_TOKEN"] = CONFIG.replicate_api_key
 
 # Ensure output directories exist
 Path("image").mkdir(exist_ok=True)
@@ -83,7 +81,7 @@ def generate_idea():
         idea_prompt += avoid_context
     
     # Call OpenAI API
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=CONFIG.openai_api_key)
     response = client.chat.completions.create(
         model="o3-mini",
         messages=[
@@ -174,7 +172,7 @@ def generate_second_prompt(idea, first_prompt):
     """
     
     # Call OpenAI API
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=CONFIG.openai_api_key)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -224,7 +222,7 @@ def generate_third_prompt(idea, first_prompt, second_prompt):
     """
     
     # Call OpenAI API
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=CONFIG.openai_api_key)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -372,7 +370,7 @@ def generate_music(idea):
     
     # Call Sonauto API
     headers = {
-        "Authorization": f"Bearer {SONAUTO_API_KEY}",
+        "Authorization": f"Bearer {CONFIG.sonauto_api_key}",
         "Content-Type": "application/json"
     }
     
@@ -483,7 +481,7 @@ def generate_voice_dialog(idea):
     """
     
     # Call OpenAI API just for voice selection and instructions
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=CONFIG.openai_api_key)
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[

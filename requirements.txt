@@ -3,3 +3,5 @@ python-dotenv
 replicate
 openai
 pathlib
+pytest
+pytest-asyncio

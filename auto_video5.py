@@ -2,34 +2,40 @@ import os
 import time
 import requests
 from pathlib import Path
-from dotenv import load_dotenv
 import replicate
 import cv2
+import asyncio
 
-# Load environment variables from .env file
-load_dotenv()
+from config import load_config, ConfigError
+from utils import file_operations
+from exceptions import FileOperationError
+from utils.validation import validate_file_path
 
-# Get API keys from environment variables
-SONAUTO_API_KEY = os.getenv("SONAUTO_API_KEY")
-REPLICATE_API_KEY = os.getenv("REPLICATE_API_KEY")
+try:
+    CONFIG = load_config()
+except ConfigError as exc:
+    raise SystemExit(str(exc))
 
-# Set Replicate API key for the replicate client
-os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_KEY
+os.environ["REPLICATE_API_TOKEN"] = CONFIG.replicate_api_key
 
 # Ensure output directories exist
 Path("image").mkdir(exist_ok=True)
 Path("video").mkdir(exist_ok=True)
 Path("music").mkdir(exist_ok=True)
 
-def read_file(file_path):
-    """Read the content of a file."""
-    with open(file_path, 'r') as file:
-        return file.read()
+from utils import file_operations
+from exceptions import FileOperationError
 
-def save_file(file_path, content, mode='wb'):
-    """Save content to a file."""
-    with open(file_path, mode) as file:
-        file.write(content)
+
+def read_file(file_path: str) -> str:
+    """Read the content of a file securely."""
+    return asyncio.run(file_operations.read_file(file_path))
+
+def save_file(file_path: str, content: bytes, mode: str = 'wb') -> None:
+    """Save content to a file securely."""
+    if mode not in ('wb', 'w'):
+        raise FileOperationError('Unsupported file mode')
+    asyncio.run(file_operations.save_file(file_path, content))
 
 def extract_last_frame(video_path, output_path):
     """
@@ -104,8 +110,8 @@ def generate_video(image_path, prompt):
     timestamp = int(time.time())
     video_filename = f"video/kling_video_{timestamp}.mp4"
     
-    # Open the image for upload
-    with open(image_path, "rb") as image_file:
+    img_path = validate_file_path(Path(image_path), [Path("image")])
+    with open(img_path, "rb") as image_file:
         # Call Kling Video API
         input_data = {
             "prompt": prompt,
@@ -122,8 +128,7 @@ def generate_video(image_path, prompt):
         )
         
         # Download and save the video
-        with open(video_filename, "wb") as file:
-            file.write(output.read())
+        asyncio.run(file_operations.save_file(video_filename, output.read()))
     
     print(f"Video generated and saved to {video_filename}")
     return video_filename
@@ -166,7 +171,7 @@ def generate_music(prompt):
     
     # Call Sonauto API
     headers = {
-        "Authorization": f"Bearer {SONAUTO_API_KEY}",
+        "Authorization": f"Bearer {CONFIG.sonauto_api_key}",
         "Content-Type": "application/json"
     }
     
@@ -234,10 +239,9 @@ def merge_videos(video_paths, music_path):
     # Generate output filename
     output_filename = "final_output.mp4"
     
-    # Create a temporary file for concatenation
-    with open("temp_list.txt", "w") as f:
-        for video_path in video_paths:
-            f.write(f"file '{video_path}'\n")
+    temp_list = "temp_list.txt"
+    content = "".join([f"file '{p}'\n" for p in video_paths])
+    asyncio.run(file_operations.save_file(temp_list, content.encode()))
     
     # First concatenate the videos
     concat_output = "temp_concat.mp4"
