@@ -32,12 +32,31 @@ class Config:
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
 
 
+_PATTERNS = {
+    "OPENAI_API_KEY": r"^sk-[A-Za-z0-9]{20,}$",
+    "SONAUTO_API_KEY": r"^sa-[A-Za-z0-9]{20,}$",
+    "REPLICATE_API_KEY": r"^r8_[A-Za-z0-9]{20,}$",
+}
+
+
 def _validate_key(name: str, value: str) -> str:
+    """Validate API key format and presence."""
     if not value:
         raise ConfigError(f"Missing environment variable: {name}")
-    if not re.match(r"^[A-Za-z0-9-_.]{20,}$", value):
+    pattern = _PATTERNS.get(name)
+    if pattern and not re.match(pattern, value):
+        raise ConfigError(f"Invalid format for {name}")
+    if not pattern and not re.match(r"^[A-Za-z0-9-_.]{20,}$", value):
         raise ConfigError(f"Invalid format for {name}")
     return value
+
+
+def reload_config() -> Config:
+    """Reload configuration from environment variables for key rotation."""
+    global _cached_pipeline, _cached_mtime
+    _cached_pipeline = None
+    _cached_mtime = 0.0
+    return load_config()
 
 
 def _load_json(path: Path) -> dict:
