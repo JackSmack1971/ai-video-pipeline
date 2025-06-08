@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import time
 from pathlib import Path
-from typing import List
+from typing import List, AsyncIterator
 
 from config import Config
 from utils.validation import sanitize_prompt, validate_file_path, sanitize_prompt_param
-from utils import file_operations
+from repositories.media_repository import MediaRepository
 from utils.api_clients import replicate_run
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
@@ -18,8 +18,9 @@ from .interfaces import MediaGeneratorInterface
 
 
 class VideoGeneratorService(MediaGeneratorInterface):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, media_repo: MediaRepository) -> None:
         self.config = config
+        self.media_repo = media_repo
 
     @sanitize_prompt_param
     async def generate(self, prompt: str, **kwargs) -> str:
@@ -43,7 +44,10 @@ class VideoGeneratorService(MediaGeneratorInterface):
         try:
             with tracer.trace_api_call("replicate", "kling"):
                 output = await call()
-            await file_operations.save_file(filename, output.read())
+            data = output.read()
+            async def _reader() -> AsyncIterator[bytes]:
+                yield data
+            await self.media_repo.save_media(filename, _reader())
             logger.info("video_generate_done", extra={"file": filename})
             return filename
         except Exception:
@@ -68,5 +72,5 @@ class VideoGeneratorService(MediaGeneratorInterface):
         return Path(kwargs.get("image_path", "")).suffix in {".png", ".jpg", ".jpeg"}
 
 
-async def generate_video(image_path: str, prompt: str, config: Config) -> str:
-    return await VideoGeneratorService(config).generate(prompt, image_path=image_path)
+async def generate_video(image_path: str, prompt: str, config: Config, repo: MediaRepository) -> str:
+    return await VideoGeneratorService(config, repo).generate(prompt, image_path=image_path)

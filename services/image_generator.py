@@ -3,11 +3,11 @@ from __future__ import annotations
 import asyncio
 import time
 from pathlib import Path
-from typing import List
+from typing import List, AsyncIterator
 
 from config import Config
 from utils.validation import sanitize_prompt, sanitize_prompt_param
-from utils import file_operations
+from repositories.media_repository import MediaRepository
 from utils.api_clients import replicate_run, http_get
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
@@ -18,8 +18,9 @@ from .interfaces import MediaGeneratorInterface
 
 
 class ImageGeneratorService(MediaGeneratorInterface):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, media_repo: MediaRepository) -> None:
         self.config = config
+        self.media_repo = media_repo
 
     @sanitize_prompt_param
     async def generate(self, prompt: str, **kwargs) -> str:
@@ -40,7 +41,9 @@ class ImageGeneratorService(MediaGeneratorInterface):
                 url = await replicate_run("black-forest-labs/flux-pro", inputs, self.config)
             with tracer.trace_api_call("replicate", "download"):
                 resp = await http_get(url, self.config)
-            await file_operations.save_file(filename, await resp.read())
+            async def _reader() -> AsyncIterator[bytes]:
+                yield await resp.read()
+            await self.media_repo.save_media(filename, _reader())
             logger.info("image_generate_done", extra={"file": filename})
             return filename
         except Exception:
@@ -65,5 +68,5 @@ class ImageGeneratorService(MediaGeneratorInterface):
         return bool(kwargs.get("prompt"))
 
 
-async def generate_image(prompt: str, config: Config) -> str:
-    return await ImageGeneratorService(config).generate(prompt)
+async def generate_image(prompt: str, config: Config, repo: MediaRepository) -> str:
+    return await ImageGeneratorService(config, repo).generate(prompt)

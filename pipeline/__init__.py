@@ -5,7 +5,7 @@ from typing import Dict, List
 import uuid
 
 from config import Config
-from services.container import Container
+from infrastructure.di_container import DIContainer
 from utils.media_processing import merge_video_audio
 from monitoring.structured_logger import set_correlation_id
 from utils.monitoring import tracer, record_profiling_metrics
@@ -29,7 +29,7 @@ from .progress import ProgressTracker
 
 
 class ContentPipeline:
-    def __init__(self, config: Config, container: Container) -> None:
+    def __init__(self, config: Config, container: DIContainer) -> None:
         self.config = config
         self.container = container
         self.pipeline_id = uuid.uuid4().hex

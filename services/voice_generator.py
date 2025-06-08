@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Dict, List
+from typing import Dict, List, AsyncIterator
 
 from config import Config
 from utils import file_operations
+from repositories.media_repository import MediaRepository
 from utils.api_clients import openai_chat, openai_speech
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
@@ -17,8 +18,9 @@ from .interfaces import MediaGeneratorInterface
 
 
 class VoiceGeneratorService(MediaGeneratorInterface):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, media_repo: MediaRepository) -> None:
         self.config = config
+        self.media_repo = media_repo
 
     @sanitize_prompt_param
     async def generate(self, prompt: str, **kwargs) -> Dict[str, str]:
@@ -44,6 +46,10 @@ class VoiceGeneratorService(MediaGeneratorInterface):
                 speech = await openai_speech(dialog, voice, instructions, self.config)
             filename = f"voice/openai_voice_{int(time.time())}.mp3"
             await asyncio.to_thread(speech.stream_to_file, filename)
+            async def _reader() -> AsyncIterator[bytes]:
+                async for chunk in file_operations.read_file_stream(filename):
+                    yield chunk
+            await self.media_repo.save_media(filename, _reader())
             logger.info("voice_generate_done", extra={"file": filename})
             return {"filename": filename, "dialog": dialog, "voice": voice, "instructions": instructions}
         except Exception:
@@ -68,5 +74,5 @@ class VoiceGeneratorService(MediaGeneratorInterface):
         return bool(kwargs.get("prompt"))
 
 
-async def generate_voice_dialog(idea: str, config: Config) -> Dict[str, str]:
-    return await VoiceGeneratorService(config).generate(idea)
+async def generate_voice_dialog(idea: str, config: Config, repo: MediaRepository) -> Dict[str, str]:
+    return await VoiceGeneratorService(config, repo).generate(idea)
