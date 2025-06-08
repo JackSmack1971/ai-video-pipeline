@@ -18,6 +18,7 @@ from .stages import (
 )
 from .scheduler import PipelineScheduler
 from .state_manager import StateManager
+from storage.persistence import PipelineStateManager, PipelineState
 from .progress import ProgressTracker
 
 
@@ -25,7 +26,9 @@ class ContentPipeline:
     def __init__(self, config: Config, container: Container) -> None:
         self.config = config
         self.container = container
-        self.state = StateManager("pipeline_state.json")
+        self.pipeline_id = uuid.uuid4().hex
+        self.state_mgr = PipelineStateManager()
+        self.state = StateManager(f"{self.pipeline_id}_runtime.json")
         self.progress = ProgressTracker()
         self.scheduler = PipelineScheduler(self.config.pipeline.video_batch_large)
         self.stages = self._build_stages()
@@ -47,8 +50,12 @@ class ContentPipeline:
         from utils.monitoring import PIPELINE_SUCCESS, PIPELINE_FAILURE
 
         try:
+            saved = await self.state_mgr.load_state(self.pipeline_id)
             result = await self.scheduler.run_pipeline(
-                self.stages, self.state, self.progress
+                self.stages, self.state, self.progress, saved.context
+            )
+            await self.state_mgr.save_state(
+                self.pipeline_id, PipelineState("completed", result)
             )
             PIPELINE_SUCCESS.inc()
             return {"idea": result.idea or "", "video": result.output or ""}
@@ -58,11 +65,14 @@ class ContentPipeline:
 
     async def run_multiple_videos(self, count: int) -> List[Dict[str, str]]:
         async def single() -> Dict[str, str]:
-            state = StateManager(f"state_{uuid.uuid4().hex}.json")
+            pid = uuid.uuid4().hex
+            state = StateManager(f"state_{pid}.json")
             scheduler = PipelineScheduler(self.config.pipeline.video_batch_large)
+            saved = await self.state_mgr.load_state(pid)
             result = await scheduler.run_pipeline(
-                self.stages, state, ProgressTracker()
+                self.stages, state, ProgressTracker(), saved.context
             )
+            await self.state_mgr.save_state(pid, PipelineState("completed", result))
             return {"idea": result.idea or "", "video": result.output or ""}
 
         return await asyncio.gather(*(single() for _ in range(count)))
@@ -72,6 +82,9 @@ class ContentPipeline:
         ctx = PipelineContext(idea=prompt)
         res = await self.scheduler.run_pipeline(
             [stage], self.state, ProgressTracker(), ctx
+        )
+        await self.state_mgr.save_state(
+            self.pipeline_id, PipelineState("music_generation", res)
         )
         return {"music": res.music_path or ""}
 

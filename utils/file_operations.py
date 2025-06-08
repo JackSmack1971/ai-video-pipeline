@@ -6,6 +6,9 @@ from utils.monitoring import FILE_PROCESS_TIME
 
 from .validation import validate_file_path
 from exceptions import FileOperationError
+from storage.integrity_checker import IntegrityChecker
+
+integrity = IntegrityChecker()
 
 BASE_DIR = Path.cwd()
 
@@ -19,7 +22,13 @@ async def read_file(path: str) -> str:
     loop = asyncio.get_event_loop()
     start = loop.time()
     try:
-        return await asyncio.to_thread(file_path.read_text)
+        data = await asyncio.to_thread(file_path.read_text)
+        checksum_file = file_path.parent / ".checksums.json"
+        checks = await integrity.load_checksums(checksum_file)
+        expected = checks.get(file_path.name)
+        if expected and not await integrity.verify(file_path, expected):
+            raise FileOperationError("Checksum mismatch")
+        return data
     except OSError as exc:
         raise FileOperationError(str(exc)) from exc
     finally:
@@ -33,6 +42,10 @@ async def save_file(path: str, data: bytes) -> None:
     start = loop.time()
     try:
         await asyncio.to_thread(file_path.write_bytes, data)
+        checksum = await integrity.sha256(file_path)
+        await integrity.update_checksum_file(
+            file_path.parent / ".checksums.json", file_path.name, checksum
+        )
     except OSError as exc:
         raise FileOperationError(str(exc)) from exc
     finally:
