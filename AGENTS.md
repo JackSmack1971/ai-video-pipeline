@@ -65,3 +65,9 @@ async def api_call_with_retry(operation_name: str, api_call, max_retries: int = 
 4. Add tests as you refactor each component
 
 **Priority**: Security and reliability over new features. Every change must improve the current 4/10 health score.
+
+## Updated Development Practices
+- Follow the workflow in `docs/contributing/development_workflow.md` for setup and code reviews.
+- Refer to `docs/api/openapi.yaml` for API documentation. Keep this spec in sync with the codebase.
+- Deployment instructions are available in `docs/deployment/production.md` and `docs/deployment/development.md`.
+- Troubleshooting guides in `docs/troubleshooting/` should be consulted before opening support tickets.

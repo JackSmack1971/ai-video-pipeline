@@ -596,7 +596,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 ### 📋 Quick Links
 
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/All-About-AI-YouTube/ai_video_pipeline/issues)
-- 📖 **Documentation**: Check the `docs/` directory for detailed API docs
+- 📖 **Documentation**: Comprehensive guides available in [docs/](docs/)
 - 💡 **Template Examples**: Explore `prompts/` for creative templates
 - 🎥 **Video Tutorials**: Coming soon!
 
