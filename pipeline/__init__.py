@@ -7,6 +7,8 @@ import uuid
 from config import Config
 from services.container import Container
 from utils.media_processing import merge_video_audio
+from monitoring.structured_logger import set_correlation_id
+from utils.monitoring import tracer
 from .stages import (
     PipelineContext,
     IdeaGeneration,
@@ -27,6 +29,7 @@ class ContentPipeline:
         self.config = config
         self.container = container
         self.pipeline_id = uuid.uuid4().hex
+        set_correlation_id(self.pipeline_id)
         self.state_mgr = PipelineStateManager()
         self.state = StateManager(f"{self.pipeline_id}_runtime.json")
         self.progress = ProgressTracker()
@@ -50,15 +53,16 @@ class ContentPipeline:
         from utils.monitoring import PIPELINE_SUCCESS, PIPELINE_FAILURE
 
         try:
-            saved = await self.state_mgr.load_state(self.pipeline_id)
-            result = await self.scheduler.run_pipeline(
-                self.stages, self.state, self.progress, saved.context
-            )
-            await self.state_mgr.save_state(
-                self.pipeline_id, PipelineState("completed", result)
-            )
-            PIPELINE_SUCCESS.inc()
-            return {"idea": result.idea or "", "video": result.output or ""}
+            with tracer.trace_video_generation(self.pipeline_id):
+                saved = await self.state_mgr.load_state(self.pipeline_id)
+                result = await self.scheduler.run_pipeline(
+                    self.stages, self.state, self.progress, saved.context
+                )
+                await self.state_mgr.save_state(
+                    self.pipeline_id, PipelineState("completed", result)
+                )
+                PIPELINE_SUCCESS.inc()
+                return {"idea": result.idea or "", "video": result.output or ""}
         except Exception:
             PIPELINE_FAILURE.inc()
             raise

@@ -12,3 +12,6 @@ fastapi
 httpx
 
 cryptography
+
+opentelemetry-api
+opentelemetry-sdk

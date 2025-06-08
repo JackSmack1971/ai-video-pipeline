@@ -7,8 +7,11 @@ from typing import Dict, List
 from config import Config
 from utils import file_operations
 from utils.api_clients import openai_chat, openai_speech
-from utils.monitoring import collector
+from utils.monitoring import collector, tracer
+from monitoring.structured_logger import get_logger
 from utils.validation import sanitize_prompt
+
+logger = get_logger(__name__)
 from .interfaces import MediaGeneratorInterface
 
 
@@ -19,10 +22,11 @@ class VoiceGeneratorService(MediaGeneratorInterface):
     async def generate(self, prompt: str, **kwargs) -> Dict[str, str]:
         idea = sanitize_prompt(prompt)
         examples = await file_operations.read_file("prompts/voice_examples.txt")
-        loop = asyncio.get_event_loop()
-        start = loop.time()
+        loop = asyncio.get_event_loop(); start = loop.time()
+        logger.info("voice_generate_start")
         chat_prompt = f"Create a brief question for: {idea}\n{examples}"
-        chat = await openai_chat(chat_prompt, self.config)
+        with tracer.trace_api_call("openai", "chat"):
+            chat = await openai_chat(chat_prompt, self.config)
         content = chat.choices[0].message.content
         fields = {
             k.lower(): v.strip().strip('"')
@@ -34,9 +38,11 @@ class VoiceGeneratorService(MediaGeneratorInterface):
         instructions = fields.get("instructions", "Speak naturally")
         voice = "shimmer" if "shimmer" in fields.get("voice", "").lower() else "onyx"
         try:
-            speech = await openai_speech(dialog, voice, instructions, self.config)
+            with tracer.trace_api_call("openai", "tts"):
+                speech = await openai_speech(dialog, voice, instructions, self.config)
             filename = f"voice/openai_voice_{int(time.time())}.mp3"
             await asyncio.to_thread(speech.stream_to_file, filename)
+            logger.info("voice_generate_done", extra={"file": filename})
             return {"filename": filename, "dialog": dialog, "voice": voice, "instructions": instructions}
         except Exception:
             collector.increment_error("voice", "generate")

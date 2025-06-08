@@ -8,7 +8,10 @@ from typing import Dict, List
 from config import Config
 from utils import file_operations
 from utils.api_clients import openai_chat
-from utils.monitoring import collector
+from utils.monitoring import collector, tracer
+from monitoring.structured_logger import get_logger
+
+logger = get_logger(__name__)
 from .interfaces import IdeaGeneratorInterface
 
 
@@ -20,14 +23,15 @@ class IdeaGeneratorService(IdeaGeneratorInterface):
         history = await self.get_history()
         base = await file_operations.read_file("prompts/idea_gen.txt")
         prompt = base
-        loop = asyncio.get_event_loop()
-        start = loop.time()
+        loop = asyncio.get_event_loop(); start = loop.time()
+        logger.info("idea_generate_start")
         if history:
             avoid = "\n\nPlease avoid generating ideas similar to:\n" + "\n".join(
                 f"{i+1}. {idea}" for i, idea in enumerate(history)
             )
             prompt += avoid
-        response = await openai_chat(prompt, self.config)
+        with tracer.trace_api_call("openai", "ideas"):
+            response = await openai_chat(prompt, self.config)
         content = response.choices[0].message.content
         idea_part, _, prompt_part = content.partition("Prompt:")
         idea = " ".join(idea_part.replace("Idea:", "").replace("*", "").split())
@@ -38,6 +42,7 @@ class IdeaGeneratorService(IdeaGeneratorInterface):
             await file_operations.save_file(
                 self.config.pipeline.history_file, json.dumps(history).encode()
             )
+            logger.info("idea_generate_done")
             return result
         except Exception:
             collector.increment_error("idea", "generate")

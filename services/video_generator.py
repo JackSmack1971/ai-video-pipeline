@@ -9,7 +9,10 @@ from config import Config
 from utils.validation import sanitize_prompt, validate_file_path
 from utils import file_operations
 from utils.api_clients import replicate_run
-from utils.monitoring import collector
+from utils.monitoring import collector, tracer
+from monitoring.structured_logger import get_logger
+
+logger = get_logger(__name__)
 from .interfaces import MediaGeneratorInterface
 
 
@@ -31,13 +34,16 @@ class VideoGeneratorService(MediaGeneratorInterface):
         }
         loop = asyncio.get_event_loop()
         start = loop.time()
+        logger.info("video_generate_start", extra={"image": image_path})
         async def call() -> bytes:
             with open(img, "rb") as f:
                 inp = {**settings, "prompt": prompt, "start_image": f}
                 return await replicate_run("kwaivgi/kling-v1.6-standard", inp, self.config)
         try:
-            output = await call()
+            with tracer.trace_api_call("replicate", "kling"):
+                output = await call()
             await file_operations.save_file(filename, output.read())
+            logger.info("video_generate_done", extra={"file": filename})
             return filename
         except Exception:
             collector.increment_error("video", "generate")

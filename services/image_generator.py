@@ -9,7 +9,10 @@ from config import Config
 from utils.validation import sanitize_prompt
 from utils import file_operations
 from utils.api_clients import replicate_run, http_get
-from utils.monitoring import collector
+from utils.monitoring import collector, tracer
+from monitoring.structured_logger import get_logger
+
+logger = get_logger(__name__)
 from .interfaces import MediaGeneratorInterface
 
 
@@ -22,6 +25,7 @@ class ImageGeneratorService(MediaGeneratorInterface):
         filename = f"image/flux_image_{int(time.time())}.png"
         loop = asyncio.get_event_loop()
         start = loop.time()
+        logger.info("image_generate_start", extra={"prompt": prompt})
         inputs = {
             "width": 768,
             "height": 1344,
@@ -31,9 +35,12 @@ class ImageGeneratorService(MediaGeneratorInterface):
             "safety_tolerance": 6,
         }
         try:
-            url = await replicate_run("black-forest-labs/flux-pro", inputs, self.config)
-            resp = await http_get(url, self.config)
+            with tracer.trace_api_call("replicate", "flux-pro"):
+                url = await replicate_run("black-forest-labs/flux-pro", inputs, self.config)
+            with tracer.trace_api_call("replicate", "download"):
+                resp = await http_get(url, self.config)
             await file_operations.save_file(filename, await resp.read())
+            logger.info("image_generate_done", extra={"file": filename})
             return filename
         except Exception:
             collector.increment_error("image", "generate")
