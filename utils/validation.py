@@ -37,12 +37,28 @@ def validate_model(model: Type[BaseModel]) -> Callable[[Callable[..., Awaitable[
 
 
 def sanitize_prompt_param(func: Callable[..., Awaitable[Any]]) -> Callable[..., Awaitable[Any]]:
-    """Decorator to sanitize the first arg as a prompt."""
+    """Decorator to sanitize the prompt argument for functions and methods."""
 
     @wraps(func)
-    async def wrapper(prompt: str, *args: Any, **kwargs: Any) -> Any:
-        clean = await InputValidator.sanitize_text(sanitize_prompt(prompt))
-        return await func(clean, *args, **kwargs)
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
+        if not args and "prompt" not in kwargs:
+            raise ValueError("prompt required")
+        if args and not isinstance(args[0], str):
+            self = args[0]
+            prompt = args[1] if len(args) > 1 else kwargs.get("prompt")
+            if prompt is None:
+                raise ValueError("prompt required")
+            if not str(prompt).strip():
+                raise ValueError("prompt required")
+            clean = await InputValidator.sanitize_text(sanitize_prompt(prompt))
+            new_args = (self, clean, *args[2:])
+        else:
+            prompt = args[0] if args else kwargs.get("prompt")
+            if not str(prompt).strip():
+                raise ValueError("prompt required")
+            clean = await InputValidator.sanitize_text(sanitize_prompt(str(prompt)))
+            new_args = (clean, *args[1:]) if args else ()
+        return await func(*new_args, **kwargs)
 
     return wrapper
 
