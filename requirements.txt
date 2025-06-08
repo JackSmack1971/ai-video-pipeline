@@ -16,3 +16,4 @@ cryptography
 opentelemetry-api
 opentelemetry-sdk
 psutil
+boto3==1.26.0
