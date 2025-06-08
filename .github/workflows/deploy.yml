@@ -1,0 +1,43 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install radon pydocstyle bandit safety detect-secrets coverage
+      - name: Run quality gate
+        run: python scripts/quality_check.py
+      - name: Run security scan
+        run: python scripts/security_scan.py
+      - name: Run tests
+        run: coverage run -m pytest && coverage report --fail-under=85
+      - name: Build Docker image
+        run: docker build -t myapp:${{ github.sha }} .
+      - name: Deploy to staging
+        run: |
+          echo 'Deploying to staging...'
+          docker tag myapp:${{ github.sha }} staging/myapp:${{ github.sha }}
+      - name: Health check
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://staging/myapp/health || echo 500)
+          if [ "$code" != "200" ]; then exit 1; fi
+      - name: Promote to production
+        if: success()
+        run: |
+          echo 'Promoting to production'
+          docker tag myapp:${{ github.sha }} prod/myapp:${{ github.sha }}
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo 'Rollback to previous version'

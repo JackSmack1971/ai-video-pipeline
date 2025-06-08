@@ -1,0 +1,31 @@
+repos:
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: black .
+        language: system
+        types: [python]
+      - id: flake8
+        name: flake8
+        entry: flake8
+        language: system
+        types: [python]
+      - id: mypy
+        name: mypy
+        entry: mypy .
+        language: system
+        types: [python]
+      - id: security-scan
+        name: security-scan
+        entry: python scripts/security_scan.py
+        language: system
+        types: [python]
+      - id: test-coverage
+        name: test-coverage
+        entry: coverage run -m pytest && coverage report --fail-under=85
+        language: system
+      - id: dependency-check
+        name: dependency-check
+        entry: safety check
+        language: system

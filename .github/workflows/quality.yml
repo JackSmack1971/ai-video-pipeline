@@ -1,0 +1,26 @@
+name: Quality Gate
+
+on:
+  pull_request:
+    paths-ignore:
+      - 'README.md'
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install radon pydocstyle bandit safety detect-secrets coverage
+          pip install pre-commit
+      - name: Run pre-commit
+        run: pre-commit run --all-files
+      - name: Run quality checks
+        run: python scripts/quality_check.py
+      - name: Run security scan
+        run: python scripts/security_scan.py
