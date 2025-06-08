@@ -22,6 +22,36 @@ paths:
                   job_id:
                     type: string
                     description: Unique identifier for the generation job
+  /analytics/usage:
+    get:
+      summary: Get usage analytics
+      responses:
+        '200':
+          description: Usage report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  completed:
+                    type: integer
+                  failed:
+                    type: integer
+  /analytics/cost:
+    get:
+      summary: Get cost analytics
+      responses:
+        '200':
+          description: Cost report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_cost:
+                    type: number
 components:
   schemas:
     GenerationRequest:

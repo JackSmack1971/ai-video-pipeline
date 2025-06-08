@@ -3,22 +3,28 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Dict
+from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from config import load_config, get_pipeline_config, PipelineConfig
 from pipeline import ContentPipeline
+from analytics.reporting import ReportingService, TimeRange
 from services.factory import create_services
 from utils.logging_config import setup_logging
 from infrastructure.task_queue import TaskQueue, JobStatus
 from infrastructure.worker_manager import WorkerManager
 from infrastructure.autoscaler import Autoscaler
+from analytics.usage_tracker import UsageTracker, GenerationRequest as UsageReq, GenerationResult
+from analytics.cost_analyzer import CostAnalyzer
+from analytics.quality_metrics import QualityMetrics
 
 app = FastAPI()
 queue = TaskQueue()
 worker_manager: WorkerManager | None = None
 autoscaler: Autoscaler | None = None
+reporter: ReportingService | None = None
 
 
 class GenerationRequest(BaseModel):
@@ -46,6 +52,10 @@ async def _process_job(job_id: str, req: GenerationRequest) -> None:
     pipe = ContentPipeline(cfg, container)
     status = await queue.get_job_status(job_id)
     status.status = "running"
+    if reporter:
+        await reporter.usage.track_generation_request(
+            UsageReq(job_id, {"video_count": req.video_count, "user_id": req.idea_type})
+        )
     try:
         result = await pipe.run_multiple_videos(req.video_count)
         out_dir = Path(req.output_dir)
@@ -53,9 +63,13 @@ async def _process_job(job_id: str, req: GenerationRequest) -> None:
         for idx, item in enumerate(result):
             Path(item["video"]).rename(out_dir / f"video_{idx}.mp4")
         status.status = "completed"
+        if reporter:
+            await reporter.usage.track_generation_completion(GenerationResult(job_id, True))
     except Exception as exc:
         status.status = "failed"
         status.error = str(exc)
+        if reporter:
+            await reporter.usage.track_generation_completion(GenerationResult(job_id, False))
 
 
 @app.post("/generate")
@@ -73,14 +87,38 @@ async def job_status(job_id: str) -> Dict[str, str | int]:
         raise HTTPException(status_code=404, detail="Job not found")
 
 
+@app.get("/analytics/usage")
+async def usage_analytics() -> Dict[str, int]:
+    if not reporter:
+        raise HTTPException(status_code=503, detail="Analytics unavailable")
+    now = datetime.utcnow()
+    rng = TimeRange(start=now.replace(hour=0, minute=0, second=0, microsecond=0), end=now)
+    data = await reporter.usage.get_usage_patterns(rng)
+    return data.__dict__
+
+
+@app.get("/analytics/cost")
+async def cost_analytics() -> Dict[str, float]:
+    if not reporter:
+        raise HTTPException(status_code=503, detail="Analytics unavailable")
+    now = datetime.utcnow()
+    rng = TimeRange(start=now.replace(hour=0, minute=0, second=0, microsecond=0), end=now)
+    total = await reporter.costs.get_total_cost(rng)
+    return {"total_cost": total}
+
+
 @app.on_event("startup")
 async def startup() -> None:
-    global worker_manager, autoscaler
+    global worker_manager, autoscaler, reporter
     setup_logging()
     worker_manager = WorkerManager(queue, _process_job)
     await worker_manager.start(1)
     autoscaler = Autoscaler(queue, worker_manager)
     await autoscaler.start()
+    tracker = UsageTracker()
+    costs = CostAnalyzer()
+    quality = QualityMetrics()
+    reporter = ReportingService(tracker, costs, quality)
 
 
 @app.on_event("shutdown")
