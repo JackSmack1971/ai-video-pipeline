@@ -5,9 +5,11 @@ from typing import Dict
 from config import Config
 from utils import file_operations
 from utils.api_clients import openai_chat, openai_speech
+from utils.validation import sanitize_prompt
 
 
 async def generate_voice_dialog(idea: str, config: Config) -> Dict[str, str]:
+    idea = sanitize_prompt(idea)
     examples = await file_operations.read_file("prompts/voice_examples.txt")
     prompt = f"Create a brief question for: {idea}\n{examples}"
     chat = await openai_chat(prompt, config)

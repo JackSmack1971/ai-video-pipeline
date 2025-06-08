@@ -11,7 +11,7 @@ BASE_DIR = Path.cwd()
 
 
 def _resolve(path: str, allowed: Iterable[str]) -> Path:
-    return validate_file_path(BASE_DIR / path, [BASE_DIR / d for d in allowed])
+    return validate_file_path(Path(path), [BASE_DIR / d for d in allowed])
 
 
 async def read_file(path: str) -> str:

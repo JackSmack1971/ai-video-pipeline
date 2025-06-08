@@ -15,7 +15,7 @@ from tests import mocks
 
 @pytest.fixture
 def cfg() -> Config:
-    return Config("sk", "sa", "rep", 1)
+    return Config("sk", "sa", "rep", 60)
 
 
 @pytest.fixture(autouse=True)
@@ -72,3 +72,8 @@ def test_generate_music(cfg: Config) -> None:
 def test_generate_voice(cfg: Config) -> None:
     result = asyncio.run(voice_generator.generate_voice_dialog("idea", cfg))
     assert result["filename"].startswith("voice/")
+
+
+def test_generate_voice_invalid(cfg: Config) -> None:
+    with pytest.raises(ValueError):
+        asyncio.run(voice_generator.generate_voice_dialog("", cfg))

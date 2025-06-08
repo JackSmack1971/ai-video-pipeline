@@ -35,7 +35,7 @@ class DummyVoice:
 
 @pytest.mark.asyncio
 async def test_pipeline_run_single(monkeypatch):
-    cfg = Config("sk", "sa", "rep", 1)
+    cfg = Config("sk", "sa", "rep", 60)
     services: Dict[str, Any] = {
         "idea_generator": DummyIdea(),
         "image_generator": DummyImage(),
@@ -56,7 +56,7 @@ async def test_pipeline_run_single(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_pipeline_music_only(monkeypatch):
-    cfg = Config("sk", "sa", "rep", 1)
+    cfg = Config("sk", "sa", "rep", 60)
     services: Dict[str, Any] = {
         "idea_generator": DummyIdea(),
         "image_generator": DummyImage(),
@@ -70,7 +70,7 @@ async def test_pipeline_music_only(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_pipeline_run_multiple(monkeypatch):
-    cfg = Config("sk", "sa", "rep", 1)
+    cfg = Config("sk", "sa", "rep", 60)
     services: Dict[str, Any] = {
         "idea_generator": DummyIdea(),
         "image_generator": DummyImage(),

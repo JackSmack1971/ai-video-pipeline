@@ -10,7 +10,7 @@ from config import Config
 
 @pytest.mark.asyncio
 async def test_generate_idea(monkeypatch, tmp_path: Path):
-    cfg = Config("sk", "sa", "rep", 1)
+    cfg = Config("sk", "sa", "rep", 60)
     cfg.pipeline.history_file = str(tmp_path / "hist.json")
 
     async def fake_read(path: str) -> str:
