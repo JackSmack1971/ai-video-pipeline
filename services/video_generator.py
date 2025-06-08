@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List
 
 from config import Config
-from utils.validation import sanitize_prompt, validate_file_path
+from utils.validation import sanitize_prompt, validate_file_path, sanitize_prompt_param
 from utils import file_operations
 from utils.api_clients import replicate_run
 from utils.monitoring import collector, tracer
@@ -21,12 +21,12 @@ class VideoGeneratorService(MediaGeneratorInterface):
     def __init__(self, config: Config) -> None:
         self.config = config
 
+    @sanitize_prompt_param
     async def generate(self, prompt: str, **kwargs) -> str:
         image_path = kwargs.get("image_path")
         if not image_path:
             raise ValueError("image_path is required")
         img = validate_file_path(Path(image_path), [Path("image")])
-        prompt = await InputValidator.sanitize_text(sanitize_prompt(prompt))
         filename = f"video/kling_video_{int(time.time())}.mp4"
         settings = {
             "aspect_ratio": "9:16",

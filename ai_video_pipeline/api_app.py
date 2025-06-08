@@ -7,6 +7,8 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+
+from utils.security_middleware import apply_security_middleware
 from pydantic import BaseModel, Field
 
 from config import load_config, get_pipeline_config, PipelineConfig
@@ -24,6 +26,7 @@ from analytics.cost_analyzer import CostAnalyzer
 from analytics.quality_metrics import QualityMetrics
 
 app = FastAPI()
+apply_security_middleware(app)
 queue = TaskQueue()
 auth = AuthManager()
 worker_manager: WorkerManager | None = None
