@@ -77,6 +77,21 @@ class ContentPipeline:
 
         return await asyncio.gather(*(single() for _ in range(count)))
 
+    async def run_multiple_videos_distributed(
+        self, count: int, workers: int
+    ) -> List[Dict[str, str]]:
+        """Run videos across multiple workers and aggregate results."""
+
+        async def batch(n: int) -> List[Dict[str, str]]:
+            return await self.run_multiple_videos(n)
+
+        parts = [count // workers + (1 if i < count % workers else 0) for i in range(workers)]
+        results = await asyncio.gather(*(batch(p) for p in parts if p))
+        merged: List[Dict[str, str]] = []
+        for chunk in results:
+            merged.extend(chunk)
+        return merged
+
     async def run_music_only(self, prompt: str) -> Dict[str, str]:
         stage = MusicGeneration(self.container["music_generator"])
         ctx = PipelineContext(idea=prompt)

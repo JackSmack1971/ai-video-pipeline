@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from pathlib import Path
 from typing import Dict
-from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
@@ -13,9 +11,14 @@ from config import load_config, get_pipeline_config, PipelineConfig
 from pipeline import ContentPipeline
 from services.factory import create_services
 from utils.logging_config import setup_logging
+from infrastructure.task_queue import TaskQueue, JobStatus
+from infrastructure.worker_manager import WorkerManager
+from infrastructure.autoscaler import Autoscaler
 
 app = FastAPI()
-_jobs: Dict[str, Dict[str, str | int]] = {}
+queue = TaskQueue()
+worker_manager: WorkerManager | None = None
+autoscaler: Autoscaler | None = None
 
 
 class GenerationRequest(BaseModel):
@@ -34,41 +37,55 @@ def _load_custom(path: str) -> PipelineConfig:
     return base
 
 
-async def _run_job(job_id: str, req: GenerationRequest) -> None:
+async def _process_job(job_id: str, req: GenerationRequest) -> None:
     cfg = load_config()
     if req.config_file:
         cfg.pipeline = _load_custom(req.config_file)
     cfg.pipeline.default_video_duration = req.duration
     container = create_services(cfg)
     pipe = ContentPipeline(cfg, container)
-    _jobs[job_id]["status"] = "running"
+    status = await queue.get_job_status(job_id)
+    status.status = "running"
     try:
         result = await pipe.run_multiple_videos(req.video_count)
         out_dir = Path(req.output_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         for idx, item in enumerate(result):
             Path(item["video"]).rename(out_dir / f"video_{idx}.mp4")
-        _jobs[job_id]["status"] = "completed"
+        status.status = "completed"
     except Exception as exc:
-        _jobs[job_id]["status"] = "failed"
-        _jobs[job_id]["error"] = str(exc)
+        status.status = "failed"
+        status.error = str(exc)
 
 
 @app.post("/generate")
 async def generate_content(req: GenerationRequest) -> Dict[str, str]:
-    job_id = uuid4().hex
-    _jobs[job_id] = {"status": "pending"}
-    asyncio.create_task(_run_job(job_id, req))
+    job_id = await queue.enqueue_video_generation(req)
     return {"job_id": job_id}
 
 
 @app.get("/status/{job_id}")
 async def job_status(job_id: str) -> Dict[str, str | int]:
-    if job_id not in _jobs:
+    try:
+        status = await queue.get_job_status(job_id)
+        return {k: v for k, v in status.__dict__.items() if v is not None}
+    except KeyError:
         raise HTTPException(status_code=404, detail="Job not found")
-    return _jobs[job_id]
 
 
 @app.on_event("startup")
 async def startup() -> None:
+    global worker_manager, autoscaler
     setup_logging()
+    worker_manager = WorkerManager(queue, _process_job)
+    await worker_manager.start(1)
+    autoscaler = Autoscaler(queue, worker_manager)
+    await autoscaler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    if autoscaler:
+        await autoscaler.stop()
+    if worker_manager:
+        await worker_manager.stop()
