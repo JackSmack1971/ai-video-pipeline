@@ -121,8 +121,8 @@ async def run_pipeline(config: Config) -> Dict[str, str]:
 
 
 if __name__ == "__main__":
-    from config import load_config
+    from config import load_config_async
 
-    cfg = load_config()
+    cfg = asyncio.run(load_config_async())
     result = asyncio.run(run_pipeline(cfg))
     print(result)

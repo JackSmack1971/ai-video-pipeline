@@ -2,14 +2,14 @@ import asyncio
 import os
 from pathlib import Path
 
-from config import load_config, ConfigError
+from config import load_config_async, ConfigError
 from pipeline import ContentPipeline
 from services.factory import create_services
 
 
 async def main() -> None:
     try:
-        config = load_config()
+        config = await load_config_async()
     except ConfigError as exc:
         raise SystemExit(str(exc))
 
