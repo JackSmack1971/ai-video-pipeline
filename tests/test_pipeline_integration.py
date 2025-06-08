@@ -58,7 +58,7 @@ async def patch_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_pipeline_integration(cfg: Config) -> None:
-    services = create_services(cfg)
-    pipeline = ContentPipeline(cfg, services)
+    container = create_services(cfg)
+    pipeline = ContentPipeline(cfg, container)
     result = await pipeline.run_single_video()
     assert result["video"].endswith("final_output.mp4")

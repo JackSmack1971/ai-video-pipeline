@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional, Protocol
 from config import Config
 from utils.media_processing import merge_video_audio
 from utils.monitoring import FILE_PROCESS_TIME, PIPELINE_FAILURE, PIPELINE_SUCCESS
+from services.container import Container
 
 
 class IdeaGenerator(Protocol):
@@ -35,13 +36,13 @@ class VoiceGenerator(Protocol):
 
 
 class ContentPipeline:
-    def __init__(self, config: Config, services: Dict[str, Any]) -> None:
+    def __init__(self, config: Config, container: Container) -> None:
         self.config = config
-        self.idea_service: IdeaGenerator = services["idea_generator"]
-        self.image_service: ImageGenerator = services["image_generator"]
-        self.video_service: VideoGenerator = services["video_generator"]
-        self.music_service: MusicGenerator = services["music_generator"]
-        self.voice_service: Optional[VoiceGenerator] = services.get("voice_generator")
+        self.idea_service: IdeaGenerator = container["idea_generator"]
+        self.image_service: ImageGenerator = container["image_generator"]
+        self.video_service: VideoGenerator = container["video_generator"]
+        self.music_service: MusicGenerator = container["music_generator"]
+        self.voice_service: Optional[VoiceGenerator] = container.get("voice_generator", None)
         
     async def run_single_video(self) -> Dict[str, str]:
         logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ class ContentPipeline:
         )
         image_path = await img_task
         video_task = asyncio.create_task(
-            self.video_service.generate(image_path, idea["prompt"])
+            self.video_service.generate(idea["prompt"], image_path=image_path)
         )
         video_path = await video_task
         music_path = await music_task
@@ -115,8 +116,8 @@ async def run_pipeline(config: Config) -> Dict[str, str]:
     setup_logging()
     start_metrics_server(8000)
     await start_health_server(8001)
-    services = create_services(config)
-    pipeline = ContentPipeline(config, services)
+    container = create_services(config)
+    pipeline = ContentPipeline(config, container)
     return await pipeline.run_single_video()
 
 

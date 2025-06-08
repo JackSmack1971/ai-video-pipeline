@@ -4,6 +4,7 @@ import sys
 sys.path.append(str(_Path(__file__).resolve().parents[1]))
 
 import main
+from services import container
 
 
 class DummyPipe:
@@ -32,7 +33,7 @@ def _patch(monkeypatch):
     monkeypatch.setenv('SONAUTO_API_KEY', 'sa-testsonauto1234567890abcd')
     monkeypatch.setenv('REPLICATE_API_KEY', 'r8_testreplicate1234567890abcd')
     monkeypatch.setattr(main, 'ContentPipeline', lambda cfg, svc: DummyPipe(cfg, svc))
-    monkeypatch.setattr(main, 'create_services', lambda cfg: {})
+    monkeypatch.setattr(main, 'create_services', lambda cfg: container.Container())
     monkeypatch.setattr(_Path, 'rename', lambda self, dst: _Path(dst).write_bytes(b''))
 
 

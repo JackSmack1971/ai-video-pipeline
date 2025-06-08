@@ -39,8 +39,8 @@ async def _run_job(job_id: str, req: GenerationRequest) -> None:
     if req.config_file:
         cfg.pipeline = _load_custom(req.config_file)
     cfg.pipeline.default_video_duration = req.duration
-    services = create_services(cfg)
-    pipe = ContentPipeline(cfg, services)
+    container = create_services(cfg)
+    pipe = ContentPipeline(cfg, container)
     _jobs[job_id]["status"] = "running"
     try:
         result = await pipe.run_multiple_videos(req.video_count)
