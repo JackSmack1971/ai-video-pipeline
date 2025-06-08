@@ -43,8 +43,15 @@ async def patch_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         p = tmp_path / path
         p.parent.mkdir(parents=True, exist_ok=True)
         await asyncio.to_thread(p.write_bytes, data)
+    async def fake_save_stream(path: str, data) -> None:
+        dest = tmp_path / path
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with dest.open("wb") as f:
+            async for chunk in data:
+                await asyncio.to_thread(f.write, chunk)
 
     monkeypatch.setattr(file_operations, "save_file", fake_save)
+    monkeypatch.setattr(file_operations, "save_file_stream", fake_save_stream)
 
     monkeypatch.setattr(
         "services.video_generator.validate_file_path",

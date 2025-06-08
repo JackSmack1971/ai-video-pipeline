@@ -19,3 +19,10 @@ def test_factory_resolution() -> None:
     container.register_factory("y", factory)
     assert container["y"] == 1
     assert container["y"] == 2
+
+
+def test_get_with_default() -> None:
+    container = DIContainer()
+    assert container.get("missing") is None
+    container.register_singleton("x", lambda: 5)
+    assert container.get("x") == 5

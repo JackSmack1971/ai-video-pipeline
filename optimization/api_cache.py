@@ -7,6 +7,7 @@ from typing import Dict, List, Tuple
 from config import Config
 from services.image_generator import ImageGeneratorService
 from services.music_generator import MusicGeneratorService
+from repositories.media_repository import MediaRepository
 from utils.validation import sanitize_prompt
 
 
@@ -26,21 +27,27 @@ class APICache:
         while len(self._image_cache) > self.max_items:
             self._image_cache.pop(next(iter(self._image_cache)))
 
-    async def get_or_generate_image(self, prompt: str, config: Config) -> str:
+    async def get_or_generate_image(
+        self, prompt: str, config: Config, repo: MediaRepository
+    ) -> str:
         """Cache similar image prompts to reduce API calls."""
         key = sanitize_prompt(prompt)
         cached = self._image_cache.get(key)
         if cached and time.time() - cached[0] < self.ttl:
             return cached[1]
-        result = await ImageGeneratorService(config).generate(key)
+        result = await ImageGeneratorService(config, repo).generate(key)
         self._image_cache[key] = (time.time(), result)
         self._prune()
         return result
 
-    async def _generate_music(self, prompt: str, config: Config) -> str:
-        return await MusicGeneratorService(config).generate(prompt)
+    async def _generate_music(
+        self, prompt: str, config: Config, repo: MediaRepository
+    ) -> str:
+        return await MusicGeneratorService(config, repo).generate(prompt)
 
-    async def batch_music_generation(self, prompts: List[str], config: Config) -> List[str]:
+    async def batch_music_generation(
+        self, prompts: List[str], config: Config, repo: MediaRepository
+    ) -> List[str]:
         """Batch multiple music requests when possible."""
-        tasks = [self._generate_music(sanitize_prompt(p), config) for p in prompts]
+        tasks = [self._generate_music(sanitize_prompt(p), config, repo) for p in prompts]
         return await asyncio.gather(*tasks)
