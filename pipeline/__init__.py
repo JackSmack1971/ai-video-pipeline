@@ -9,6 +9,9 @@ from services.container import Container
 from utils.media_processing import merge_video_audio
 from monitoring.structured_logger import set_correlation_id
 from utils.monitoring import tracer
+from analytics.usage_tracker import GenerationRequest, GenerationResult, UsageTracker
+from analytics.cost_analyzer import CostAnalyzer
+from analytics.quality_metrics import QualityMetrics
 from .stages import (
     PipelineContext,
     IdeaGeneration,
@@ -33,6 +36,9 @@ class ContentPipeline:
         self.state_mgr = PipelineStateManager()
         self.state = StateManager(f"{self.pipeline_id}_runtime.json")
         self.progress = ProgressTracker()
+        self.usage_tracker = UsageTracker()
+        self.cost_analyzer = CostAnalyzer()
+        self.quality_metrics = QualityMetrics()
         self.scheduler = PipelineScheduler(self.config.pipeline.video_batch_large)
         self.stages = self._build_stages()
 
@@ -51,7 +57,8 @@ class ContentPipeline:
 
     async def run_single_video(self) -> Dict[str, str]:
         from utils.monitoring import PIPELINE_SUCCESS, PIPELINE_FAILURE
-
+        req = GenerationRequest(self.pipeline_id, {"videos": 1})
+        await self.usage_tracker.track_generation_request(req)
         try:
             with tracer.trace_video_generation(self.pipeline_id):
                 saved = await self.state_mgr.load_state(self.pipeline_id)
@@ -61,9 +68,15 @@ class ContentPipeline:
                 await self.state_mgr.save_state(
                     self.pipeline_id, PipelineState("completed", result)
                 )
+                await self.usage_tracker.track_generation_completion(
+                    GenerationResult(self.pipeline_id, True)
+                )
                 PIPELINE_SUCCESS.inc()
                 return {"idea": result.idea or "", "video": result.output or ""}
         except Exception:
+            await self.usage_tracker.track_generation_completion(
+                GenerationResult(self.pipeline_id, False)
+            )
             PIPELINE_FAILURE.inc()
             raise
 
@@ -73,10 +86,16 @@ class ContentPipeline:
             state = StateManager(f"state_{pid}.json")
             scheduler = PipelineScheduler(self.config.pipeline.video_batch_large)
             saved = await self.state_mgr.load_state(pid)
+            await self.usage_tracker.track_generation_request(
+                GenerationRequest(pid, {"videos": 1})
+            )
             result = await scheduler.run_pipeline(
                 self.stages, state, ProgressTracker(), saved.context
             )
             await self.state_mgr.save_state(pid, PipelineState("completed", result))
+            await self.usage_tracker.track_generation_completion(
+                GenerationResult(pid, True)
+            )
             return {"idea": result.idea or "", "video": result.output or ""}
 
         return await asyncio.gather(*(single() for _ in range(count)))
@@ -99,11 +118,17 @@ class ContentPipeline:
     async def run_music_only(self, prompt: str) -> Dict[str, str]:
         stage = MusicGeneration(self.container["music_generator"])
         ctx = PipelineContext(idea=prompt)
+        await self.usage_tracker.track_generation_request(
+            GenerationRequest(self.pipeline_id, {"music_only": 1})
+        )
         res = await self.scheduler.run_pipeline(
             [stage], self.state, ProgressTracker(), ctx
         )
         await self.state_mgr.save_state(
             self.pipeline_id, PipelineState("music_generation", res)
+        )
+        await self.usage_tracker.track_generation_completion(
+            GenerationResult(self.pipeline_id, True)
         )
         return {"music": res.music_path or ""}
 
