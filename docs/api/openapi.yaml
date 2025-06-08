@@ -1,0 +1,38 @@
+openapi: 3.0.0
+info:
+  title: AI Video Pipeline API
+  version: 2.0.0
+paths:
+  /api/v1/generate:
+    post:
+      summary: Generate AI videos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerationRequest'
+      responses:
+        '200':
+          description: Video generation started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    description: Unique identifier for the generation job
+components:
+  schemas:
+    GenerationRequest:
+      type: object
+      properties:
+        idea:
+          type: string
+          description: High level idea for the video
+        duration:
+          type: integer
+          description: Video length in seconds
+      required:
+        - idea
+        - duration
