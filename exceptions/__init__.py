@@ -1,6 +1,7 @@
 from .hierarchy import (
     PipelineBaseException,
     ConfigurationError,
+    SecurityError,
     ServiceError,
     OpenAIError,
     ReplicateError,
@@ -26,6 +27,7 @@ FileOperationError = FileOperationError
 __all__ = [
     "PipelineBaseException",
     "ConfigurationError",
+    "SecurityError",
     "ServiceError",
     "OpenAIError",
     "ReplicateError",

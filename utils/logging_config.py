@@ -3,7 +3,7 @@ import logging
 import os
 from typing import Any, Dict
 
-from monitoring.structured_logger import correlation_id
+from monitoring.structured_logger import correlation_id, StructuredLogger
 from compliance.audit_logger import AuditLogger
 from config.schemas import ComplianceConfig
 
@@ -26,6 +26,15 @@ class JsonFormatter(logging.Formatter):
             if "key" in k.lower() or "token" in k.lower():
                 data[k] = "***"
         return json.dumps(data)
+
+
+def get_json_logger(name: str) -> StructuredLogger:
+    logger = logging.getLogger(name)
+    if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
+        handler = logging.StreamHandler()
+        handler.setFormatter(JsonFormatter())
+        logger.addHandler(handler)
+    return StructuredLogger(logger, {})
 
 
 def setup_logging(
