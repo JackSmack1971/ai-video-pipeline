@@ -18,6 +18,7 @@ from pipeline import ContentPipeline
 from analytics.reporting import ReportingService, TimeRange
 from services.factory import create_services
 from utils.logging_config import setup_logging
+from utils.error_handling import error_middleware
 from infrastructure.task_queue import TaskQueue, JobStatus
 from infrastructure.worker_manager import WorkerManager
 from infrastructure.autoscaler import Autoscaler
@@ -27,6 +28,7 @@ from analytics.quality_metrics import QualityMetrics
 
 app = FastAPI()
 apply_security_middleware(app)
+app.middleware("http")(error_middleware)
 queue = TaskQueue()
 auth = AuthManager()
 worker_manager: WorkerManager | None = None
