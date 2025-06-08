@@ -16,6 +16,7 @@ from services.image_generator import ImageGeneratorService
 from services.video_generator import VideoGeneratorService
 from services.music_generator import MusicGeneratorService
 from services.voice_generator import VoiceGeneratorService
+from repositories.implementations.in_memory_media_repository import InMemoryMediaRepository
 from utils import file_operations
 from tests import mocks
 
@@ -40,12 +41,6 @@ def patch_clients(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest_asyncio.fixture(autouse=True)
 async def patch_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    async def fake_save(path: str, data: bytes) -> None:
-        p = tmp_path / path
-        p.parent.mkdir(parents=True, exist_ok=True)
-        await asyncio.to_thread(p.write_bytes, data)
-
-    monkeypatch.setattr(file_operations, "save_file", fake_save)
     async def fake_speech(text: str, voice: str, instructions: str, config: Config):
         class S:
             def stream_to_file(self, filename: str) -> None:
@@ -55,11 +50,21 @@ async def patch_files(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
         return S()
     monkeypatch.setattr(voice_module, "openai_speech", fake_speech)
+    async def empty_stream():
+        if False:
+            yield b""
+    async def read_file(_: str) -> str:
+        return ""
+    monkeypatch.setattr(file_operations, "read_file", read_file)
+    monkeypatch.setattr(file_operations, "read_file_stream", lambda *a, **k: empty_stream())
+    monkeypatch.setattr(file_operations, "BASE_DIR", tmp_path)
+    monkeypatch.chdir(tmp_path)
     yield
 
 
 def test_generate_image(cfg: Config) -> None:
-    svc = ImageGeneratorService(cfg)
+    repo = InMemoryMediaRepository()
+    svc = ImageGeneratorService(cfg, repo)
     result = asyncio.run(svc.generate("prompt"))
     assert result.startswith("image/")
 
@@ -68,24 +73,28 @@ def test_generate_video(cfg: Config, tmp_path: Path) -> None:
     img = tmp_path / "image" / "img.png"
     img.parent.mkdir(parents=True)
     img.write_bytes(b"data")
-    svc = VideoGeneratorService(cfg)
+    repo = InMemoryMediaRepository()
+    svc = VideoGeneratorService(cfg, repo)
     result = asyncio.run(svc.generate("prompt", image_path=str(img)))
     assert result.startswith("video/")
 
 
 def test_generate_music(cfg: Config) -> None:
-    svc = MusicGeneratorService(cfg)
+    repo = InMemoryMediaRepository()
+    svc = MusicGeneratorService(cfg, repo)
     result = asyncio.run(svc.generate("idea"))
     assert result.startswith("music/")
 
 
 def test_generate_voice(cfg: Config) -> None:
-    svc = VoiceGeneratorService(cfg)
+    repo = InMemoryMediaRepository()
+    svc = VoiceGeneratorService(cfg, repo)
     result = asyncio.run(svc.generate("idea"))
     assert result["filename"].startswith("voice/")
 
 
 def test_generate_voice_invalid(cfg: Config) -> None:
-    svc = VoiceGeneratorService(cfg)
+    repo = InMemoryMediaRepository()
+    svc = VoiceGeneratorService(cfg, repo)
     with pytest.raises(ValueError):
         asyncio.run(svc.generate(""))

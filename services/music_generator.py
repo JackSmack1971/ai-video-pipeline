@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import time
-from typing import Dict, List
+from typing import Dict, List, AsyncIterator
 
 from config import Config
 from utils.validation import sanitize_prompt, sanitize_prompt_param
-from utils import file_operations
+from repositories.media_repository import MediaRepository
 from utils.api_clients import http_post, http_get
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
@@ -18,8 +18,9 @@ from .interfaces import MediaGeneratorInterface
 
 
 class MusicGeneratorService(MediaGeneratorInterface):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, media_repo: MediaRepository) -> None:
         self.config = config
+        self.media_repo = media_repo
 
     async def _wait_for_music(self, task_id: str, headers: Dict[str, str]) -> str:
         for _ in range(20):
@@ -66,7 +67,9 @@ class MusicGeneratorService(MediaGeneratorInterface):
             task_id = data["task_id"]
             url = await self._wait_for_music(task_id, headers)
             song = await http_get(url, self.config, None)
-            await file_operations.save_file(filename, await song.read())
+            async def _reader() -> AsyncIterator[bytes]:
+                yield await song.read()
+            await self.media_repo.save_media(filename, _reader())
             logger.info("music_generate_done", extra={"file": filename})
             return filename
         except Exception:
@@ -91,5 +94,5 @@ class MusicGeneratorService(MediaGeneratorInterface):
         return bool(kwargs.get("prompt"))
 
 
-async def generate_music(prompt: str, config: Config) -> str:
-    return await MusicGeneratorService(config).generate(prompt)
+async def generate_music(prompt: str, config: Config, repo: MediaRepository) -> str:
+    return await MusicGeneratorService(config, repo).generate(prompt)

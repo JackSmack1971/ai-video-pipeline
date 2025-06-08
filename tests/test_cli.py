@@ -5,7 +5,7 @@ import sys
 sys.path.append(str(_Path(__file__).resolve().parents[1]))
 
 from ai_video_pipeline import cli
-from services import container
+import infrastructure.di_container
 
 
 class DummyPipe:
@@ -27,7 +27,7 @@ def test_cli_generate(monkeypatch, tmp_path):
     monkeypatch.setenv('SONAUTO_API_KEY', 'sa-testsonauto1234567890abcd')
     monkeypatch.setenv('REPLICATE_API_KEY', 'r8_testreplicate1234567890abcd')
     monkeypatch.setattr(cli, 'ContentPipeline', lambda cfg, services: DummyPipe(cfg, services))
-    monkeypatch.setattr(cli, 'create_services', lambda cfg: container.Container())
+    monkeypatch.setattr(cli, 'create_services', lambda cfg: infrastructure.di_container.DIContainer())
     monkeypatch.setattr(_Path, 'rename', lambda self, dst: _Path(dst).write_bytes(b''))
     out = tmp_path / 'out'
     cli.main(['generate', '--video-count', '2', '--output-dir', str(out)])
