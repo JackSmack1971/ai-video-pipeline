@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Callable
 
 from config import Config
 
@@ -31,6 +31,9 @@ async def fake_openai_chat(prompt: str, config: Config, model: str = "gpt-4o") -
 
     return Resp("Idea: Test Idea\nPrompt: test prompt")
 
+async def fake_openai_chat_error(prompt: str, config: Config, model: str = "gpt-4o") -> Any:
+    raise RuntimeError("openai failure")
+
 
 async def fake_openai_speech(
     text: str, voice: str, instructions: str, config: Config
@@ -56,6 +59,9 @@ async def fake_replicate_run(
         return F()
     return "http://dummy/image.png"
 
+async def fake_replicate_run_error(model: str, inputs: Dict[str, Any], config: Config) -> Any:
+    raise ValueError("replicate failure")
+
 
 async def fake_http_get(
     url: str, config: Config, headers: Dict[str, str] | None = None
@@ -66,11 +72,21 @@ async def fake_http_get(
         return FakeResponse(b'{"song_paths": ["http://dummy/song.mp3"]}')
     return FakeResponse(b"data")
 
+async def fake_http_get_error(
+    url: str, config: Config, headers: Dict[str, str] | None = None
+) -> FakeResponse:
+    raise ConnectionError("network")
+
 
 async def fake_http_post(
     url: str, payload: Dict[str, Any], headers: Dict[str, str], config: Config
 ) -> FakeResponse:
     return FakeResponse(b'{"task_id": "123"}')
+
+async def fake_http_post_error(
+    url: str, payload: Dict[str, Any], headers: Dict[str, str], config: Config
+) -> FakeResponse:
+    raise ConnectionError("network")
 
 
 async def async_merge(*args: Any, **kwargs: Any) -> str:
