@@ -15,3 +15,4 @@ cryptography
 
 opentelemetry-api
 opentelemetry-sdk
+psutil

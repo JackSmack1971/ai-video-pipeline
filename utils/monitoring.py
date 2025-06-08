@@ -21,6 +21,10 @@ FILE_PROCESS_TIME = Histogram(
 )
 PIPELINE_SUCCESS = Counter("pipeline_success_total", "Successful pipeline runs")
 PIPELINE_FAILURE = Counter("pipeline_failure_total", "Failed pipeline runs")
+CPU_USAGE = Histogram("profiling_cpu_usage_percent", "CPU utilization during profiling")
+MEMORY_USAGE = Histogram(
+    "profiling_memory_usage_percent", "Memory utilization during profiling"
+)
 
 collector = MetricsCollector()
 tracker = PerformanceTracker()
@@ -56,3 +60,8 @@ async def start_health_server(config: Any, port: int) -> web.AppRunner:
 
 def start_metrics_server(port: int) -> None:
     start_http_server(port)
+
+
+def record_profiling_metrics(cpu: float, memory: float) -> None:
+    CPU_USAGE.observe(cpu)
+    MEMORY_USAGE.observe(memory)

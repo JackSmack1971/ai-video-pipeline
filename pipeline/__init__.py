@@ -8,7 +8,8 @@ from config import Config
 from services.container import Container
 from utils.media_processing import merge_video_audio
 from monitoring.structured_logger import set_correlation_id
-from utils.monitoring import tracer
+from utils.monitoring import tracer, record_profiling_metrics
+from profiling.app_profiler import ApplicationProfiler
 from analytics.usage_tracker import GenerationRequest, GenerationResult, UsageTracker
 from analytics.cost_analyzer import CostAnalyzer
 from analytics.quality_metrics import QualityMetrics
@@ -41,6 +42,7 @@ class ContentPipeline:
         self.quality_metrics = QualityMetrics()
         self.scheduler = PipelineScheduler(self.config.pipeline.video_batch_large)
         self.stages = self._build_stages()
+        self.profiler = ApplicationProfiler()
 
     def _build_stages(self) -> List:
         stages: List = [
@@ -59,6 +61,7 @@ class ContentPipeline:
         from utils.monitoring import PIPELINE_SUCCESS, PIPELINE_FAILURE
         req = GenerationRequest(self.pipeline_id, {"videos": 1})
         await self.usage_tracker.track_generation_request(req)
+        await self.profiler.profile_pipeline_execution(self.pipeline_id)
         try:
             with tracer.trace_video_generation(self.pipeline_id):
                 saved = await self.state_mgr.load_state(self.pipeline_id)
@@ -72,6 +75,8 @@ class ContentPipeline:
                     GenerationResult(self.pipeline_id, True)
                 )
                 PIPELINE_SUCCESS.inc()
+                report = await self.profiler.generate_performance_report()
+                record_profiling_metrics(report.cpu, report.memory)
                 return {"idea": result.idea or "", "video": result.output or ""}
         except Exception:
             await self.usage_tracker.track_generation_completion(
