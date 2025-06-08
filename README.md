@@ -156,7 +156,7 @@ graph TB
 
 **1. Clone & Setup Environment**
 ```bash
-git clone https://github.com/All-About-AI-YouTube/ai_video_pipeline.git
+git clone https://github.com/JackSmack1971/ai_video_pipeline.git
 cd ai_video_pipeline
 
 # Create virtual environment
