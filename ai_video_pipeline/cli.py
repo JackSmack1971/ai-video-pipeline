@@ -29,8 +29,8 @@ async def _run_generate(args: argparse.Namespace) -> None:
     if args.config_file:
         cfg.pipeline = _load_custom_config(args.config_file)
     cfg.pipeline.default_video_duration = args.duration
-    services = create_services(cfg)
-    pipe = ContentPipeline(cfg, services)
+    container = create_services(cfg)
+    pipe = ContentPipeline(cfg, container)
     result = await pipe.run_multiple_videos(args.video_count)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

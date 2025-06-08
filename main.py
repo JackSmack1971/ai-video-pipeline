@@ -13,8 +13,8 @@ async def _prepare(config_env: str | None) -> tuple[Any, ContentPipeline]:
     cfg = await load_config_async(config_env)
     for d in ["image", "video", "music", "voice"]:
         Path(d).mkdir(exist_ok=True)
-    services = create_services(cfg)
-    pipe = ContentPipeline(cfg, services)
+    container = create_services(cfg)
+    pipe = ContentPipeline(cfg, container)
     return cfg, pipe
 
 
