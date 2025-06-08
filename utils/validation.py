@@ -5,7 +5,7 @@ from typing import Iterable
 MAX_PROMPT_LENGTH = 2000
 _SAFE_PROMPT_RE = re.compile(r"[A-Za-z0-9\s.,!?'-]+")
 
-from exceptions import FileError
+from exceptions import FileOperationError
 
 
 def sanitize_prompt(prompt: str) -> str:
@@ -23,9 +23,9 @@ def sanitize_prompt(prompt: str) -> str:
 def validate_file_path(path: Path, allowed_dirs: Iterable[Path]) -> Path:
     """Ensure the path stays within allowed directories."""
     if path.is_absolute():
-        raise FileError("Absolute paths are not allowed")
+        raise FileOperationError("Absolute paths are not allowed")
     if any(part == ".." for part in path.parts):
-        raise FileError("Path traversal detected")
+        raise FileOperationError("Path traversal detected")
     base = Path.cwd()
     resolved = (base / path).resolve()
     for allowed in allowed_dirs:
@@ -35,4 +35,4 @@ def validate_file_path(path: Path, allowed_dirs: Iterable[Path]) -> Path:
             return resolved
         except ValueError:
             continue
-    raise FileError(f"Access to '{path}' is not allowed")
+    raise FileOperationError(f"Access to '{path}' is not allowed")

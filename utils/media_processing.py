@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional
 
-from exceptions import APIError
+from exceptions import FFmpegError
 
 
 async def merge_video_audio(
@@ -28,5 +28,5 @@ async def merge_video_audio(
     )
     _, err = await process.communicate()
     if process.returncode != 0:
-        raise APIError(f"ffmpeg failed: {err.decode()}")
+        raise FFmpegError(f"ffmpeg failed: {err.decode()}")
     return output

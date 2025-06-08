@@ -8,7 +8,7 @@ from config import Config
 from utils.validation import sanitize_prompt
 from utils import file_operations
 from utils.api_clients import http_post, http_get
-from exceptions import APIError, NetworkError
+from exceptions import SonautoError, NetworkError
 from .interfaces import MediaGeneratorInterface
 
 
@@ -25,10 +25,10 @@ class MusicGeneratorService(MediaGeneratorInterface):
                 headers,
             )
             if status.status != 200:
-                raise APIError(await status.text())
+                raise SonautoError(await status.text())
             state = (await status.text()).strip('"')
             if state == "FAILURE":
-                raise APIError("Music generation failed")
+                raise SonautoError("Music generation failed")
             if state == "SUCCESS":
                 result = await http_get(
                     f"https://api.sonauto.ai/v1/generations/{task_id}",
@@ -36,7 +36,7 @@ class MusicGeneratorService(MediaGeneratorInterface):
                     headers,
                 )
                 if result.status != 200:
-                    raise APIError(await result.text())
+                    raise SonautoError(await result.text())
                 data = await result.json()
                 return data["song_paths"][0]
         raise NetworkError("Music generation timed out")
