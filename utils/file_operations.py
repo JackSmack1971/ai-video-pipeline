@@ -1,12 +1,14 @@
 import asyncio
 from pathlib import Path
-from typing import Iterable
+from typing import AsyncIterable, Iterable
 
 from utils.monitoring import FILE_PROCESS_TIME
 
 from .validation import validate_file_path
 from exceptions import FileOperationError
 from storage.integrity_checker import IntegrityChecker
+from optimization.streaming_io import stream_write
+from optimization.memory_manager import MemoryManager
 
 integrity = IntegrityChecker()
 
@@ -50,3 +52,14 @@ async def save_file(path: str, data: bytes) -> None:
         raise FileOperationError(str(exc)) from exc
     finally:
         FILE_PROCESS_TIME.labels(operation="save_file").observe(loop.time() - start)
+
+
+async def read_file_stream(path: str, chunk_size: int = 65536) -> AsyncIterable[bytes]:
+    file_path = _resolve(path, ["prompts", "image", "video", "music", "voice", "."])
+    async for chunk in MemoryManager.stream_file(file_path, chunk_size):
+        yield chunk
+
+
+async def save_file_stream(path: str, data: AsyncIterable[bytes]) -> None:
+    file_path = _resolve(path, ["image", "video", "music", "voice"])
+    await stream_write(file_path, data)

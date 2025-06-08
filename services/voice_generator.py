@@ -44,6 +44,15 @@ class VoiceGeneratorService(MediaGeneratorInterface):
         finally:
             collector.observe_response("voice", loop.time() - start)
 
+    async def generate_batch(self, prompts: List[str]) -> List[Dict[str, str]]:
+        sem = asyncio.Semaphore(3)
+
+        async def gen(p: str) -> Dict[str, str]:
+            async with sem:
+                return await self.generate(p)
+
+        return await asyncio.gather(*(gen(p) for p in prompts))
+
     async def get_supported_formats(self) -> List[str]:
         return ["mp3"]
 

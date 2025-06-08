@@ -41,6 +41,15 @@ class ImageGeneratorService(MediaGeneratorInterface):
         finally:
             collector.observe_response("image", loop.time() - start)
 
+    async def generate_batch(self, prompts: List[str]) -> List[str]:
+        sem = asyncio.Semaphore(5)
+
+        async def gen(p: str) -> str:
+            async with sem:
+                return await self.generate(p)
+
+        return await asyncio.gather(*(gen(p) for p in prompts))
+
     async def get_supported_formats(self) -> List[str]:
         return ["png"]
 

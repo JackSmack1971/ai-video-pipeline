@@ -14,18 +14,15 @@ from exceptions import (
     SonautoError,
 )
 from exceptions import get_policy
+from optimization.connection_pool import get_session
 
-_session: Optional[aiohttp.ClientSession] = None
 _openai_breaker = CircuitBreaker()
 _replicate_breaker = CircuitBreaker()
 _sonauto_breaker = CircuitBreaker()
 
 
-def _get_session(timeout: int) -> aiohttp.ClientSession:
-    global _session
-    if _session is None or _session.closed:
-        _session = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout))
-    return _session
+async def _get_session(timeout: int) -> aiohttp.ClientSession:
+    return await get_session(timeout)
 
 
 async def openai_chat(prompt: str, config: Config, model: str = "gpt-4o") -> Any:
@@ -95,7 +92,7 @@ async def replicate_run(model: str, inputs: Dict[str, Any], config: Config) -> A
 async def http_get(
     url: str, config: Config, headers: Optional[Dict[str, str]] = None
 ) -> aiohttp.ClientResponse:
-    session = _get_session(config.api_timeout)
+    session = await _get_session(config.api_timeout)
 
     async def call() -> aiohttp.ClientResponse:
         resp = await session.get(url, headers=headers)
@@ -117,7 +114,7 @@ async def http_get(
 async def http_post(
     url: str, payload: Dict[str, Any], headers: Dict[str, str], config: Config
 ) -> aiohttp.ClientResponse:
-    session = _get_session(config.api_timeout)
+    session = await _get_session(config.api_timeout)
 
     async def call() -> aiohttp.ClientResponse:
         resp = await session.post(url, json=payload, headers=headers)

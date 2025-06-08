@@ -45,6 +45,15 @@ class VideoGeneratorService(MediaGeneratorInterface):
         finally:
             collector.observe_response("video", loop.time() - start)
 
+    async def generate_batch(self, items: List[dict]) -> List[str]:
+        sem = asyncio.Semaphore(2)
+
+        async def gen(it: dict) -> str:
+            async with sem:
+                return await self.generate(it["prompt"], image_path=it["image_path"])
+
+        return await asyncio.gather(*(gen(i) for i in items))
+
     async def get_supported_formats(self) -> List[str]:
         return ["mp4"]
 
