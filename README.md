@@ -126,12 +126,8 @@ export OPENAI_API_KEY="sk-your-openai-key"
 export REPLICATE_API_KEY="r8_your-replicate-key"  
 export SONAUTO_API_KEY="sa-your-sonauto-key"
 
-# Option 2: Create .env file
-cat > .env << EOF
-OPENAI_API_KEY=sk-your-openai-key
-REPLICATE_API_KEY=r8_your-replicate-key
-SONAUTO_API_KEY=sa-your-sonauto-key
-EOF
+# Option 2: Copy `.env.example` to `.env`
+cp .env.example .env
 ```
 
 **3. Generate Your First Video** 🎉

@@ -11,6 +11,7 @@ from typing import Any, Dict, Optional
 from pydantic import ValidationError
 from .schemas import Config, PipelineConfig, SecurityConfig, ComplianceConfig
 from .validator import ConfigError, validate_keys
+from utils.secure_config import SecureConfigError, decrypt_value
 
 _CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs"
 _cached: Optional[Config] = None
@@ -25,17 +26,11 @@ def _parse_value(val: str) -> Any:
 
 
 def _decrypt(val: str) -> str:
-    if not val.startswith("ENC:"):
-        return val
-    key = os.getenv("PIPELINE_SECRET_KEY")
-    if not key:
-        raise ConfigError("Missing PIPELINE_SECRET_KEY")
-    from cryptography.fernet import Fernet, InvalidToken
-
     try:
-        f = Fernet(key.encode())
-        return f.decrypt(val[4:].encode()).decode()
-    except InvalidToken as exc:
+        return decrypt_value(val)
+    except SecureConfigError as exc:
+        raise ConfigError(str(exc)) from exc
+    except Exception as exc:
         raise ConfigError("Failed to decrypt config value") from exc
 
 
@@ -82,6 +77,8 @@ async def load_config(env: Optional[str] = None) -> Config:
         "sonauto_api_key": _decrypt(os.getenv("SONAUTO_API_KEY", top.get("sonauto_api_key", ""))),
         "replicate_api_key": _decrypt(os.getenv("REPLICATE_API_KEY", top.get("replicate_api_key", ""))),
     }
+    if not all(keys.values()):
+        raise ConfigError("Missing API keys")
     security = SecurityConfig(
         token_expiry=int(os.getenv("SECURITY_TOKEN_EXPIRY", "3600")),
         rate_limit=int(os.getenv("SECURITY_RATE_LIMIT", "60")),
