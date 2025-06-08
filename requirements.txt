@@ -15,5 +15,7 @@ cryptography
 
 opentelemetry-api
 opentelemetry-sdk
+opentelemetry-exporter-jaeger
+deprecated
 psutil
 boto3==1.26.0

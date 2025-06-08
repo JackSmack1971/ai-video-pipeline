@@ -20,5 +20,7 @@ jobs:
           pip install pytest-cov
       - name: Cleanup Coverage Database
         run: rm -f .coverage
+      - name: Set up Python path
+        run: echo "PYTHONPATH=$(pwd)" >> $GITHUB_ENV
       - name: Run Tests
         run: pytest --cov=./ --cov-report=xml
