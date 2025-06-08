@@ -7,6 +7,7 @@ from typing import Dict, List
 from config import Config
 from utils import file_operations
 from utils.api_clients import openai_chat, openai_speech
+from utils.monitoring import collector
 from utils.validation import sanitize_prompt
 from .interfaces import MediaGeneratorInterface
 
@@ -18,6 +19,8 @@ class VoiceGeneratorService(MediaGeneratorInterface):
     async def generate(self, prompt: str, **kwargs) -> Dict[str, str]:
         idea = sanitize_prompt(prompt)
         examples = await file_operations.read_file("prompts/voice_examples.txt")
+        loop = asyncio.get_event_loop()
+        start = loop.time()
         chat_prompt = f"Create a brief question for: {idea}\n{examples}"
         chat = await openai_chat(chat_prompt, self.config)
         content = chat.choices[0].message.content
@@ -30,10 +33,16 @@ class VoiceGeneratorService(MediaGeneratorInterface):
         dialog = fields.get("dialog", "")
         instructions = fields.get("instructions", "Speak naturally")
         voice = "shimmer" if "shimmer" in fields.get("voice", "").lower() else "onyx"
-        speech = await openai_speech(dialog, voice, instructions, self.config)
-        filename = f"voice/openai_voice_{int(time.time())}.mp3"
-        await asyncio.to_thread(speech.stream_to_file, filename)
-        return {"filename": filename, "dialog": dialog, "voice": voice, "instructions": instructions}
+        try:
+            speech = await openai_speech(dialog, voice, instructions, self.config)
+            filename = f"voice/openai_voice_{int(time.time())}.mp3"
+            await asyncio.to_thread(speech.stream_to_file, filename)
+            return {"filename": filename, "dialog": dialog, "voice": voice, "instructions": instructions}
+        except Exception:
+            collector.increment_error("voice", "generate")
+            raise
+        finally:
+            collector.observe_response("voice", loop.time() - start)
 
     async def get_supported_formats(self) -> List[str]:
         return ["mp3"]

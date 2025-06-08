@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from pathlib import Path
 from typing import List
@@ -8,6 +9,7 @@ from config import Config
 from utils.validation import sanitize_prompt, validate_file_path
 from utils import file_operations
 from utils.api_clients import replicate_run
+from utils.monitoring import collector
 from .interfaces import MediaGeneratorInterface
 
 
@@ -27,13 +29,21 @@ class VideoGeneratorService(MediaGeneratorInterface):
             "cfg_scale": 0.5,
             "duration": self.config.pipeline.default_video_duration,
         }
+        loop = asyncio.get_event_loop()
+        start = loop.time()
         async def call() -> bytes:
             with open(img, "rb") as f:
                 inp = {**settings, "prompt": prompt, "start_image": f}
                 return await replicate_run("kwaivgi/kling-v1.6-standard", inp, self.config)
-        output = await call()
-        await file_operations.save_file(filename, output.read())
-        return filename
+        try:
+            output = await call()
+            await file_operations.save_file(filename, output.read())
+            return filename
+        except Exception:
+            collector.increment_error("video", "generate")
+            raise
+        finally:
+            collector.observe_response("video", loop.time() - start)
 
     async def get_supported_formats(self) -> List[str]:
         return ["mp4"]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Dict, List
@@ -7,6 +8,7 @@ from typing import Dict, List
 from config import Config
 from utils import file_operations
 from utils.api_clients import openai_chat
+from utils.monitoring import collector
 from .interfaces import IdeaGeneratorInterface
 
 
@@ -18,6 +20,8 @@ class IdeaGeneratorService(IdeaGeneratorInterface):
         history = await self.get_history()
         base = await file_operations.read_file("prompts/idea_gen.txt")
         prompt = base
+        loop = asyncio.get_event_loop()
+        start = loop.time()
         if history:
             avoid = "\n\nPlease avoid generating ideas similar to:\n" + "\n".join(
                 f"{i+1}. {idea}" for i, idea in enumerate(history)
@@ -30,10 +34,16 @@ class IdeaGeneratorService(IdeaGeneratorInterface):
         result = {"idea": idea.strip(), "prompt": prompt_part.strip()}
         history.append(result["idea"])
         history = history[-self.config.pipeline.max_stored_ideas :]
-        await file_operations.save_file(
-            self.config.pipeline.history_file, json.dumps(history).encode()
-        )
-        return result
+        try:
+            await file_operations.save_file(
+                self.config.pipeline.history_file, json.dumps(history).encode()
+            )
+            return result
+        except Exception:
+            collector.increment_error("idea", "generate")
+            raise
+        finally:
+            collector.observe_response("idea", loop.time() - start)
 
     async def get_history(self) -> List[str]:
         try:
