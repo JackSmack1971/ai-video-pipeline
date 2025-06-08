@@ -4,6 +4,8 @@ import os
 from typing import Any, Dict
 
 from monitoring.structured_logger import correlation_id
+from compliance.audit_logger import AuditLogger
+from config.schemas import ComplianceConfig
 
 
 class JsonFormatter(logging.Formatter):
@@ -26,7 +28,10 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(data)
 
 
-def setup_logging(level: int = logging.INFO) -> None:
+def setup_logging(
+    level: int = logging.INFO,
+    compliance: ComplianceConfig | None = None,
+) -> AuditLogger | None:
     env = os.getenv("LOG_LEVEL")
     if env:
         level = getattr(logging, env.upper(), level)
@@ -36,3 +41,10 @@ def setup_logging(level: int = logging.INFO) -> None:
     root.setLevel(level)
     root.handlers.clear()
     root.addHandler(handler)
+    audit_logger: AuditLogger | None = None
+    if compliance:
+        audit_logger = AuditLogger(compliance.audit_log)
+        file_handler = logging.FileHandler(audit_logger.path)
+        file_handler.setFormatter(JsonFormatter())
+        root.addHandler(file_handler)
+    return audit_logger

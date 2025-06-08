@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from .schemas import Config, PipelineConfig, SecurityConfig
+from .schemas import Config, PipelineConfig, SecurityConfig, ComplianceConfig
 from .loader import (
     load_config as _load_config,
     reload_config as _reload_config,
@@ -68,6 +68,7 @@ __all__ = [
     "Config",
     "PipelineConfig",
     "SecurityConfig",
+    "ComplianceConfig",
     "load_config",
     "reload_config",
     "load_pipeline_config",
