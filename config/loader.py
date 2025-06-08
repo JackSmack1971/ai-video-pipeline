@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pydantic import ValidationError
-from .schemas import Config, PipelineConfig, SecurityConfig
+from .schemas import Config, PipelineConfig, SecurityConfig, ComplianceConfig
 from .validator import ConfigError, validate_keys
 
 _CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs"
@@ -86,6 +86,10 @@ async def load_config(env: Optional[str] = None) -> Config:
         token_expiry=int(os.getenv("SECURITY_TOKEN_EXPIRY", "3600")),
         rate_limit=int(os.getenv("SECURITY_RATE_LIMIT", "60")),
     )
+    compliance = ComplianceConfig(
+        audit_log=os.getenv("COMPLIANCE_AUDIT_LOG", "logs/audit.log"),
+        retention_days=int(os.getenv("COMPLIANCE_RETENTION_DAYS", "30")),
+    )
     api_timeout = int(os.getenv("API_TIMEOUT", str(top.get("api_timeout", 60))))
     try:
         cfg = Config(
@@ -93,6 +97,7 @@ async def load_config(env: Optional[str] = None) -> Config:
             api_timeout=api_timeout,
             pipeline=pipeline,
             security=security,
+            compliance=compliance,
         )
     except ValidationError as exc:
         raise ConfigError(str(exc)) from exc

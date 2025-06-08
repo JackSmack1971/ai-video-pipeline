@@ -5,6 +5,12 @@ from pydantic.dataclasses import dataclass
 from pydantic import Field, model_validator
 from .errors import ConfigError
 
+
+@dataclass
+class ComplianceConfig:
+    audit_log: str = "logs/audit.log"
+    retention_days: int = Field(30, ge=1, le=365)
+
 @dataclass
 class PipelineConfig:
     max_stored_ideas: int = Field(6, ge=1, le=100)
@@ -45,3 +51,4 @@ class Config:
     api_timeout: int = Field(60, ge=30, le=600)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
+    compliance: ComplianceConfig = field(default_factory=ComplianceConfig)
