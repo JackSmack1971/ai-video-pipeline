@@ -5,7 +5,7 @@ from typing import Iterable
 from utils.monitoring import FILE_PROCESS_TIME
 
 from .validation import validate_file_path
-from exceptions import FileError
+from exceptions import FileOperationError
 
 BASE_DIR = Path.cwd()
 
@@ -21,7 +21,7 @@ async def read_file(path: str) -> str:
     try:
         return await asyncio.to_thread(file_path.read_text)
     except OSError as exc:
-        raise FileError(str(exc)) from exc
+        raise FileOperationError(str(exc)) from exc
     finally:
         FILE_PROCESS_TIME.labels(operation="read_file").observe(loop.time() - start)
 
@@ -34,6 +34,6 @@ async def save_file(path: str, data: bytes) -> None:
     try:
         await asyncio.to_thread(file_path.write_bytes, data)
     except OSError as exc:
-        raise FileError(str(exc)) from exc
+        raise FileOperationError(str(exc)) from exc
     finally:
         FILE_PROCESS_TIME.labels(operation="save_file").observe(loop.time() - start)

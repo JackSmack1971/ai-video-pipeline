@@ -7,8 +7,18 @@ from openai import AsyncOpenAI
 
 from config import Config
 from utils.api import api_call_with_retry
+from exceptions import (
+    CircuitBreaker,
+    OpenAIError,
+    ReplicateError,
+    SonautoError,
+)
+from exceptions import get_policy
 
 _session: Optional[aiohttp.ClientSession] = None
+_openai_breaker = CircuitBreaker()
+_replicate_breaker = CircuitBreaker()
+_sonauto_breaker = CircuitBreaker()
 
 
 def _get_session(timeout: int) -> aiohttp.ClientSession:
@@ -27,7 +37,16 @@ async def openai_chat(prompt: str, config: Config, model: str = "gpt-4o") -> Any
             messages=[{"role": "user", "content": prompt}],
         )
 
-    return await api_call_with_retry("openai_chat", call, timeout=config.api_timeout)
+    try:
+        return await api_call_with_retry(
+            "openai_chat",
+            call,
+            service="openai",
+            timeout=config.api_timeout,
+            breaker=_openai_breaker,
+        )
+    except Exception as exc:
+        raise OpenAIError(str(exc)) from exc
 
 
 async def openai_speech(
@@ -43,7 +62,16 @@ async def openai_speech(
             instructions=instructions,
         )
 
-    return await api_call_with_retry("openai_tts", call, timeout=config.api_timeout)
+    try:
+        return await api_call_with_retry(
+            "openai_tts",
+            call,
+            service="openai",
+            timeout=config.api_timeout,
+            breaker=_openai_breaker,
+        )
+    except Exception as exc:
+        raise OpenAIError(str(exc)) from exc
 
 
 async def replicate_run(model: str, inputs: Dict[str, Any], config: Config) -> Any:
@@ -52,7 +80,16 @@ async def replicate_run(model: str, inputs: Dict[str, Any], config: Config) -> A
     async def call() -> Any:
         return await replicate.async_run(client, model, input=inputs)
 
-    return await api_call_with_retry(model, call, timeout=config.api_timeout)
+    try:
+        return await api_call_with_retry(
+            model,
+            call,
+            service="replicate",
+            timeout=config.api_timeout,
+            breaker=_replicate_breaker,
+        )
+    except Exception as exc:
+        raise ReplicateError(str(exc)) from exc
 
 
 async def http_get(
@@ -65,7 +102,16 @@ async def http_get(
         resp.raise_for_status()
         return resp
 
-    return await api_call_with_retry("http_get", call, timeout=config.api_timeout)
+    try:
+        return await api_call_with_retry(
+            "http_get",
+            call,
+            service="sonauto",
+            timeout=config.api_timeout,
+            breaker=_sonauto_breaker,
+        )
+    except Exception as exc:
+        raise SonautoError(str(exc)) from exc
 
 
 async def http_post(
@@ -78,4 +124,13 @@ async def http_post(
         resp.raise_for_status()
         return resp
 
-    return await api_call_with_retry("http_post", call, timeout=config.api_timeout)
+    try:
+        return await api_call_with_retry(
+            "http_post",
+            call,
+            service="sonauto",
+            timeout=config.api_timeout,
+            breaker=_sonauto_breaker,
+        )
+    except Exception as exc:
+        raise SonautoError(str(exc)) from exc
