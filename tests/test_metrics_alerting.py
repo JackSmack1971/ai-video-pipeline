@@ -26,7 +26,7 @@ async def test_alerting_on_errors():
     collector.observe_response("svc", 1.0)
     collector.increment_error("svc", "fail")
     alerts = await manager.evaluate()
-    assert any(a.message == "error rate high" for a in alerts)
+    assert any(a.message == "error rate high" for a in alerts), "No error rate high alert generated"
 
 
 def test_performance_tracker():

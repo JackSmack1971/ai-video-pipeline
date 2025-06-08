@@ -1,6 +1,6 @@
 import asyncio
 import logging
-import random
+import secrets
 from typing import Awaitable, Callable, TypeVar
 
 from exceptions import (
@@ -47,5 +47,5 @@ async def api_call_with_retry(
             if attempts == policy.max_attempts - 1:
                 raise APIError(f"{operation_name} failed: {exc}") from exc
         attempts += 1
-        await asyncio.sleep((2 ** attempts) + random.random())
+        await asyncio.sleep((2 ** attempts) + secrets.SystemRandom().random())
     raise APIError(f"{operation_name} failed after retries")
