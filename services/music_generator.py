@@ -8,14 +8,16 @@ from config import Config
 from utils.validation import sanitize_prompt
 from utils import file_operations
 from utils.api_clients import http_post, http_get
+from caching.cache_manager import CacheManager
 from utils.monitoring import collector
 from exceptions import SonautoError, NetworkError
 from .interfaces import MediaGeneratorInterface
 
 
 class MusicGeneratorService(MediaGeneratorInterface):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, cache: CacheManager | None = None) -> None:
         self.config = config
+        self.cache = cache
 
     async def _wait_for_music(self, task_id: str, headers: Dict[str, str]) -> str:
         for _ in range(20):
@@ -44,6 +46,12 @@ class MusicGeneratorService(MediaGeneratorInterface):
 
     async def generate(self, prompt: str, **kwargs) -> str:
         prompt = sanitize_prompt(prompt)
+        key = prompt
+        if self.cache:
+            key, _ = self.cache.dedup.check_prompt(prompt)
+            cached = await self.cache.get_cached_image(key)
+            if cached:
+                return cached
         filename = f"music/sonauto_music_{int(time.time())}.mp3"
         loop = asyncio.get_event_loop()
         start = loop.time()
@@ -64,7 +72,12 @@ class MusicGeneratorService(MediaGeneratorInterface):
             task_id = data["task_id"]
             url = await self._wait_for_music(task_id, headers)
             song = await http_get(url, self.config, None)
-            await file_operations.save_file(filename, await song.read())
+            data_bytes = await song.read()
+            if self.cache:
+                await file_operations.save_cached_file(filename, data_bytes)
+                await self.cache.cache_generation_result(key, {"file": filename})
+            else:
+                await file_operations.save_file(filename, data_bytes)
             return filename
         except Exception:
             collector.increment_error("music", "generate")
@@ -88,5 +101,5 @@ class MusicGeneratorService(MediaGeneratorInterface):
         return bool(kwargs.get("prompt"))
 
 
-async def generate_music(prompt: str, config: Config) -> str:
-    return await MusicGeneratorService(config).generate(prompt)
+async def generate_music(prompt: str, config: Config, cache: CacheManager | None = None) -> str:
+    return await MusicGeneratorService(config, cache).generate(prompt)

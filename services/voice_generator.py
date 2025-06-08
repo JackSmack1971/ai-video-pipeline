@@ -7,17 +7,25 @@ from typing import Dict, List
 from config import Config
 from utils import file_operations
 from utils.api_clients import openai_chat, openai_speech
+from caching.cache_manager import CacheManager
 from utils.monitoring import collector
 from utils.validation import sanitize_prompt
 from .interfaces import MediaGeneratorInterface
 
 
 class VoiceGeneratorService(MediaGeneratorInterface):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, cache: CacheManager | None = None) -> None:
         self.config = config
+        self.cache = cache
 
     async def generate(self, prompt: str, **kwargs) -> Dict[str, str]:
         idea = sanitize_prompt(prompt)
+        key = idea
+        if self.cache:
+            key, _ = self.cache.dedup.check_prompt(idea)
+            cached = await self.cache.get_cached_image(key)
+            if cached:
+                return {"filename": cached, "dialog": idea, "voice": "cached", "instructions": ""}
         examples = await file_operations.read_file("prompts/voice_examples.txt")
         loop = asyncio.get_event_loop()
         start = loop.time()
@@ -37,6 +45,8 @@ class VoiceGeneratorService(MediaGeneratorInterface):
             speech = await openai_speech(dialog, voice, instructions, self.config)
             filename = f"voice/openai_voice_{int(time.time())}.mp3"
             await asyncio.to_thread(speech.stream_to_file, filename)
+            if self.cache:
+                await self.cache.cache_generation_result(key, {"file": filename})
             return {"filename": filename, "dialog": dialog, "voice": voice, "instructions": instructions}
         except Exception:
             collector.increment_error("voice", "generate")
@@ -60,5 +70,5 @@ class VoiceGeneratorService(MediaGeneratorInterface):
         return bool(kwargs.get("prompt"))
 
 
-async def generate_voice_dialog(idea: str, config: Config) -> Dict[str, str]:
-    return await VoiceGeneratorService(config).generate(idea)
+async def generate_voice_dialog(idea: str, config: Config, cache: CacheManager | None = None) -> Dict[str, str]:
+    return await VoiceGeneratorService(config, cache).generate(idea)

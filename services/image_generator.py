@@ -8,17 +8,25 @@ from typing import List
 from config import Config
 from utils.validation import sanitize_prompt
 from utils import file_operations
+from caching.cache_manager import CacheManager
 from utils.api_clients import replicate_run, http_get
 from utils.monitoring import collector
 from .interfaces import MediaGeneratorInterface
 
 
 class ImageGeneratorService(MediaGeneratorInterface):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, cache: CacheManager | None = None) -> None:
         self.config = config
+        self.cache = cache
 
     async def generate(self, prompt: str, **kwargs) -> str:
         prompt = sanitize_prompt(prompt)
+        key = prompt
+        if self.cache:
+            key, existing = self.cache.dedup.check_prompt(prompt)
+            cached = await self.cache.get_cached_image(key)
+            if cached:
+                return cached
         filename = f"image/flux_image_{int(time.time())}.png"
         loop = asyncio.get_event_loop()
         start = loop.time()
@@ -33,7 +41,12 @@ class ImageGeneratorService(MediaGeneratorInterface):
         try:
             url = await replicate_run("black-forest-labs/flux-pro", inputs, self.config)
             resp = await http_get(url, self.config)
-            await file_operations.save_file(filename, await resp.read())
+            data = await resp.read()
+            if self.cache:
+                await file_operations.save_cached_file(filename, data)
+                await self.cache.cache_generation_result(key, {"file": filename})
+            else:
+                await file_operations.save_file(filename, data)
             return filename
         except Exception:
             collector.increment_error("image", "generate")
@@ -57,5 +70,5 @@ class ImageGeneratorService(MediaGeneratorInterface):
         return bool(kwargs.get("prompt"))
 
 
-async def generate_image(prompt: str, config: Config) -> str:
-    return await ImageGeneratorService(config).generate(prompt)
+async def generate_image(prompt: str, config: Config, cache: CacheManager | None = None) -> str:
+    return await ImageGeneratorService(config, cache).generate(prompt)
