@@ -83,7 +83,7 @@ async def run_pipeline(config: Config) -> Dict[str, str]:
 
     setup_logging()
     start_metrics_server(8000)
-    await start_health_server(8001)
+    await start_health_server(config, 8001)
     container = create_services(config)
     pipeline = ContentPipeline(config, container)
     return await pipeline.run_single_video()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from pathlib import Path
 from typing import List
@@ -8,6 +9,7 @@ from config import Config
 from utils.validation import sanitize_prompt
 from utils import file_operations
 from utils.api_clients import replicate_run, http_get
+from utils.monitoring import collector
 from .interfaces import MediaGeneratorInterface
 
 
@@ -18,6 +20,8 @@ class ImageGeneratorService(MediaGeneratorInterface):
     async def generate(self, prompt: str, **kwargs) -> str:
         prompt = sanitize_prompt(prompt)
         filename = f"image/flux_image_{int(time.time())}.png"
+        loop = asyncio.get_event_loop()
+        start = loop.time()
         inputs = {
             "width": 768,
             "height": 1344,
@@ -26,10 +30,16 @@ class ImageGeneratorService(MediaGeneratorInterface):
             "aspect_ratio": "9:16",
             "safety_tolerance": 6,
         }
-        url = await replicate_run("black-forest-labs/flux-pro", inputs, self.config)
-        resp = await http_get(url, self.config)
-        await file_operations.save_file(filename, await resp.read())
-        return filename
+        try:
+            url = await replicate_run("black-forest-labs/flux-pro", inputs, self.config)
+            resp = await http_get(url, self.config)
+            await file_operations.save_file(filename, await resp.read())
+            return filename
+        except Exception:
+            collector.increment_error("image", "generate")
+            raise
+        finally:
+            collector.observe_response("image", loop.time() - start)
 
     async def get_supported_formats(self) -> List[str]:
         return ["png"]

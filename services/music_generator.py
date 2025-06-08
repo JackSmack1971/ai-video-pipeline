@@ -8,6 +8,7 @@ from config import Config
 from utils.validation import sanitize_prompt
 from utils import file_operations
 from utils.api_clients import http_post, http_get
+from utils.monitoring import collector
 from exceptions import SonautoError, NetworkError
 from .interfaces import MediaGeneratorInterface
 
@@ -44,6 +45,8 @@ class MusicGeneratorService(MediaGeneratorInterface):
     async def generate(self, prompt: str, **kwargs) -> str:
         prompt = sanitize_prompt(prompt)
         filename = f"music/sonauto_music_{int(time.time())}.mp3"
+        loop = asyncio.get_event_loop()
+        start = loop.time()
         payload = {
             "prompt": prompt,
             "tags": ["ethereal", "chants"],
@@ -55,13 +58,19 @@ class MusicGeneratorService(MediaGeneratorInterface):
             "Authorization": f"Bearer {self.config.sonauto_api_key}",
             "Content-Type": "application/json",
         }
-        resp = await http_post("https://api.sonauto.ai/v1/generations", payload, headers, self.config)
-        data = await resp.json()
-        task_id = data["task_id"]
-        url = await self._wait_for_music(task_id, headers)
-        song = await http_get(url, self.config, None)
-        await file_operations.save_file(filename, await song.read())
-        return filename
+        try:
+            resp = await http_post("https://api.sonauto.ai/v1/generations", payload, headers, self.config)
+            data = await resp.json()
+            task_id = data["task_id"]
+            url = await self._wait_for_music(task_id, headers)
+            song = await http_get(url, self.config, None)
+            await file_operations.save_file(filename, await song.read())
+            return filename
+        except Exception:
+            collector.increment_error("music", "generate")
+            raise
+        finally:
+            collector.observe_response("music", loop.time() - start)
 
     async def get_supported_formats(self) -> List[str]:
         return ["mp3"]
