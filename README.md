@@ -136,7 +136,7 @@ EOF
 
 **3. Generate Your First Video** 🎉
 ```bash
-python auto_video.py
+python main.py run single
 ```
 
 ---
@@ -152,22 +152,22 @@ python auto_video.py
 <th>Output</th>
 </tr>
 <tr>
-<td><code>python auto_video.py</code></td>
+<td><code>python main.py run single</code></td>
 <td>Generate single video with voice</td>
 <td>1 complete video</td>
 </tr>
 <tr>
-<td><code>python auto_video3.py</code></td>
+<td><code>python main.py run batch --size small</code></td>
 <td>Small batch generation</td>
 <td>3 videos concurrently</td>
 </tr>
 <tr>
-<td><code>python auto_video5.py</code></td>
+<td><code>python main.py run batch --size large</code></td>
 <td>Large batch generation</td>
 <td>5 videos concurrently</td>
 </tr>
 <tr>
-<td><code>python auto_video4.py</code></td>
+<td><code>python main.py run music-only</code></td>
 <td>Music-only generation</td>
 <td>Ambient soundtrack</td>
 </tr>
@@ -608,7 +608,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ```bash
 git clone https://github.com/All-About-AI-YouTube/ai_video_pipeline.git
-cd ai_video_pipeline && python auto_video.py
+cd ai_video_pipeline && python main.py run single
 ```
 
 *Built with ❤️ for the AI community*
