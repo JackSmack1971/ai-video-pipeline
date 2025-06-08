@@ -52,16 +52,21 @@ async def test_complete_single_video_pipeline(cfg: Config) -> None:
 @pytest.mark.asyncio
 async def test_batch_processing_with_failures(cfg: Config, monkeypatch: pytest.MonkeyPatch) -> None:
     called = 0
+
     async def bad_generate(*a, **k):
         nonlocal called
         called += 1
         if called == 2:
             raise RuntimeError("fail")
         return await mocks.fake_replicate_run(*a, **k)
+
     monkeypatch.setattr("services.video_generator.replicate_run", bad_generate)
     pipe = ContentPipeline(cfg, create_services(cfg))
-    with pytest.raises(RuntimeError):
+
+    with pytest.raises(RuntimeError, match="fail"):
         await pipe.run_multiple_videos(3)
+
+    assert called >= 2
 
 @pytest.mark.asyncio
 async def test_pipeline_recovery_from_each_stage(cfg: Config, tmp_path: Path) -> None:

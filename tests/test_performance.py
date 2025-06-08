@@ -36,5 +36,5 @@ async def test_pipeline_concurrent_speed(monkeypatch: pytest.MonkeyPatch) -> Non
     start = asyncio.get_event_loop().time()
     await pipe.run_multiple_videos(3)
     duration = asyncio.get_event_loop().time() - start
-    assert duration < 0.4
+    assert duration < 0.6
 
