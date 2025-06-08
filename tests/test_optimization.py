@@ -11,12 +11,14 @@ from optimization.connection_pool import get_session, close_all
 from optimization.streaming_io import stream_copy
 from optimization.memory_manager import MemoryManager
 from services.image_generator import ImageGeneratorService
+from repositories.implementations.in_memory_media_repository import InMemoryMediaRepository
 
 
 @pytest.mark.asyncio
 async def test_api_cache_image(monkeypatch: pytest.MonkeyPatch) -> None:
     cache = APICache(ttl=60)
     cfg = Config("k", "s", "r", 60)
+    repo = InMemoryMediaRepository()
     calls = 0
 
     async def fake_generate(self: ImageGeneratorService, prompt: str, **kw) -> str:
@@ -25,8 +27,8 @@ async def test_api_cache_image(monkeypatch: pytest.MonkeyPatch) -> None:
         return f"img_{prompt}"
 
     monkeypatch.setattr(ImageGeneratorService, "generate", fake_generate)
-    r1 = await cache.get_or_generate_image("a", cfg)
-    r2 = await cache.get_or_generate_image("a", cfg)
+    r1 = await cache.get_or_generate_image("a", cfg, repo)
+    r2 = await cache.get_or_generate_image("a", cfg, repo)
     assert r1 == r2
     assert calls == 1
 

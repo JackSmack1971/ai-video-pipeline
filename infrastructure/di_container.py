@@ -29,3 +29,10 @@ class DIContainer:
 
     def __getitem__(self, key: Any) -> Any:
         return self.resolve(key)
+
+    def get(self, key: Any, default: Any | None = None) -> Any:
+        """Dictionary-like access with default fallback."""
+        try:
+            return self.resolve(key)
+        except KeyError:
+            return default
