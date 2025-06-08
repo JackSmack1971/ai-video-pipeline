@@ -11,6 +11,7 @@ from utils import file_operations
 from utils.api_clients import replicate_run
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
+from security.input_validator import InputValidator
 
 logger = get_logger(__name__)
 from .interfaces import MediaGeneratorInterface
@@ -25,7 +26,7 @@ class VideoGeneratorService(MediaGeneratorInterface):
         if not image_path:
             raise ValueError("image_path is required")
         img = validate_file_path(Path(image_path), [Path("image")])
-        prompt = sanitize_prompt(prompt)
+        prompt = await InputValidator.sanitize_text(sanitize_prompt(prompt))
         filename = f"video/kling_video_{int(time.time())}.mp4"
         settings = {
             "aspect_ratio": "9:16",

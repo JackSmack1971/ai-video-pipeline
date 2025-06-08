@@ -11,6 +11,7 @@ from utils import file_operations
 from utils.api_clients import replicate_run, http_get
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
+from security.input_validator import InputValidator
 
 logger = get_logger(__name__)
 from .interfaces import MediaGeneratorInterface
@@ -21,7 +22,7 @@ class ImageGeneratorService(MediaGeneratorInterface):
         self.config = config
 
     async def generate(self, prompt: str, **kwargs) -> str:
-        prompt = sanitize_prompt(prompt)
+        prompt = await InputValidator.sanitize_text(sanitize_prompt(prompt))
         filename = f"image/flux_image_{int(time.time())}.png"
         loop = asyncio.get_event_loop()
         start = loop.time()

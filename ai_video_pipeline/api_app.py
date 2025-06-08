@@ -5,10 +5,13 @@ from pathlib import Path
 from typing import Dict
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from config import load_config, get_pipeline_config, PipelineConfig
+from security.auth_manager import AuthManager
+from security.input_validator import InputValidator
 from pipeline import ContentPipeline
 from analytics.reporting import ReportingService, TimeRange
 from services.factory import create_services
@@ -22,9 +25,27 @@ from analytics.quality_metrics import QualityMetrics
 
 app = FastAPI()
 queue = TaskQueue()
+auth = AuthManager()
 worker_manager: WorkerManager | None = None
 autoscaler: Autoscaler | None = None
 reporter: ReportingService | None = None
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    key = request.headers.get("X-API-KEY")
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    user = None
+    if token:
+        user = await auth.validate_token(token)
+    if not user and key:
+        user = await auth.authenticate_api_key(key)
+    if not user:
+        return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+    if InputValidator.too_many_requests(user.id):
+        return JSONResponse(status_code=429, content={"detail": "Too many requests"})
+    request.state.user = user
+    return await call_next(request)
 
 
 class GenerationRequest(BaseModel):
@@ -74,6 +95,7 @@ async def _process_job(job_id: str, req: GenerationRequest) -> None:
 
 @app.post("/generate")
 async def generate_content(req: GenerationRequest) -> Dict[str, str]:
+    req.idea_type = await InputValidator.sanitize_text(req.idea_type)
     job_id = await queue.enqueue_video_generation(req)
     return {"job_id": job_id}
 
