@@ -22,7 +22,7 @@ class DummyIdea:
 
 @pytest.mark.asyncio
 async def test_pipeline_concurrent_speed(monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = Config("sk", "sa", "rep", 1)
+    cfg = Config("sk", "sa", "rep", 60)
     services = {
         "idea_generator": DummyIdea(),
         "image_generator": SleepService(),

@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
-from config import load_config, reload_config, ConfigError, load_pipeline_config
+from config import load_config, reload_config, ConfigError, load_pipeline_config, PipelineConfig
 
 
 def test_load_config_success(monkeypatch):
@@ -39,3 +39,19 @@ def test_reload_config(monkeypatch):
     monkeypatch.setenv('OPENAI_API_KEY', 'sk-secondkey1234567890abcd')
     cfg2 = reload_config()
     assert cfg1.openai_api_key != cfg2.openai_api_key
+
+
+def test_api_timeout_bounds(monkeypatch):
+    monkeypatch.setenv('OPENAI_API_KEY', 'sk-testopenai1234567890abcd')
+    monkeypatch.setenv('SONAUTO_API_KEY', 'sa-testsonauto1234567890abcd')
+    monkeypatch.setenv('REPLICATE_API_KEY', 'r8_testreplicate1234567890abcd')
+    monkeypatch.setenv('API_TIMEOUT', '10')
+    with pytest.raises(ConfigError):
+        load_config()
+
+
+def test_pipeline_config_bounds():
+    with pytest.raises(ConfigError):
+        PipelineConfig(default_video_duration=0)
+    with pytest.raises(ConfigError):
+        PipelineConfig(video_batch_large=11)

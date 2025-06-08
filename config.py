@@ -23,6 +23,16 @@ class PipelineConfig:
     video_batch_large: int = 5
     music_only_prompt: str = "ambient soundtrack"
 
+    def __post_init__(self) -> None:
+        if not 1 <= self.default_video_duration <= 60:
+            raise ConfigError("default_video_duration must be between 1 and 60")
+        if not 1 <= self.video_batch_small <= 10:
+            raise ConfigError("video_batch_small must be between 1 and 10")
+        if not 1 <= self.video_batch_large <= 10:
+            raise ConfigError("video_batch_large must be between 1 and 10")
+        if not 30 <= self.api_timeout <= 600:
+            raise ConfigError("api_timeout must be between 30 and 600")
+
 @pydantic_dataclass
 class Config:
     openai_api_key: str
@@ -30,6 +40,10 @@ class Config:
     replicate_api_key: str
     api_timeout: int = 60
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
+
+    def __post_init__(self) -> None:
+        if not 30 <= self.api_timeout <= 600:
+            raise ConfigError("API timeout must be between 30 and 600 seconds")
 
 
 _PATTERNS = {
@@ -103,5 +117,7 @@ def load_config() -> Config:
         timeout = int(timeout_str)
     except ValueError as exc:
         raise ConfigError("API_TIMEOUT must be an integer") from exc
+    if not 30 <= timeout <= 600:
+        raise ConfigError("API_TIMEOUT must be between 30 and 600")
     pipeline_cfg = get_pipeline_config()
     return Config(openai_key, sonauto_key, replicate_key, timeout, pipeline_cfg)

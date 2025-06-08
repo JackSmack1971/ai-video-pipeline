@@ -16,7 +16,7 @@ from utils import file_operations
 
 @pytest.fixture
 def cfg() -> Config:
-    return Config("sk", "sa", "rep", 1)
+    return Config("sk", "sa", "rep", 60)
 
 
 @pytest_asyncio.fixture(autouse=True)

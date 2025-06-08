@@ -23,7 +23,7 @@ class DummyGen:
 
 @pytest.mark.asyncio
 async def test_pipeline_metrics(monkeypatch):
-    cfg = Config("k1", "k2", "k3", 1)
+    cfg = Config("k1", "k2", "k3", 60)
     services = {
         "idea_generator": DummyIdea(),
         "image_generator": DummyGen(),
