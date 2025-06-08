@@ -9,7 +9,7 @@ from utils import file_operations
 from utils.api_clients import openai_chat, openai_speech
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
-from utils.validation import sanitize_prompt
+from utils.validation import sanitize_prompt, sanitize_prompt_param
 from security.input_validator import InputValidator
 
 logger = get_logger(__name__)
@@ -20,8 +20,9 @@ class VoiceGeneratorService(MediaGeneratorInterface):
     def __init__(self, config: Config) -> None:
         self.config = config
 
+    @sanitize_prompt_param
     async def generate(self, prompt: str, **kwargs) -> Dict[str, str]:
-        idea = await InputValidator.sanitize_text(sanitize_prompt(prompt))
+        idea = prompt
         examples = await file_operations.read_file("prompts/voice_examples.txt")
         loop = asyncio.get_event_loop(); start = loop.time()
         logger.info("voice_generate_start")

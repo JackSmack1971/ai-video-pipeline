@@ -5,7 +5,7 @@ import time
 from typing import Dict, List
 
 from config import Config
-from utils.validation import sanitize_prompt
+from utils.validation import sanitize_prompt, sanitize_prompt_param
 from utils import file_operations
 from utils.api_clients import http_post, http_get
 from utils.monitoring import collector, tracer
@@ -46,8 +46,8 @@ class MusicGeneratorService(MediaGeneratorInterface):
                 return data["song_paths"][0]
         raise NetworkError("Music generation timed out")
 
+    @sanitize_prompt_param
     async def generate(self, prompt: str, **kwargs) -> str:
-        prompt = await InputValidator.sanitize_text(sanitize_prompt(prompt))
         filename = f"music/sonauto_music_{int(time.time())}.mp3"
         loop = asyncio.get_event_loop(); start = loop.time()
         logger.info("music_generate_start")

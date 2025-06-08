@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List
 
 from config import Config
-from utils.validation import sanitize_prompt
+from utils.validation import sanitize_prompt, sanitize_prompt_param
 from utils import file_operations
 from utils.api_clients import replicate_run, http_get
 from utils.monitoring import collector, tracer
@@ -21,8 +21,8 @@ class ImageGeneratorService(MediaGeneratorInterface):
     def __init__(self, config: Config) -> None:
         self.config = config
 
+    @sanitize_prompt_param
     async def generate(self, prompt: str, **kwargs) -> str:
-        prompt = await InputValidator.sanitize_text(sanitize_prompt(prompt))
         filename = f"image/flux_image_{int(time.time())}.png"
         loop = asyncio.get_event_loop()
         start = loop.time()
