@@ -9,6 +9,7 @@ from config import Config
 from utils import file_operations
 from utils.api_clients import openai_chat
 from utils.monitoring import collector, tracer
+from security.input_validator import InputValidator
 from monitoring.structured_logger import get_logger
 
 logger = get_logger(__name__)
@@ -35,7 +36,9 @@ class IdeaGeneratorService(IdeaGeneratorInterface):
         content = response.choices[0].message.content
         idea_part, _, prompt_part = content.partition("Prompt:")
         idea = " ".join(idea_part.replace("Idea:", "").replace("*", "").split())
-        result = {"idea": idea.strip(), "prompt": prompt_part.strip()}
+        idea = await InputValidator.sanitize_text(idea.strip())
+        prompt_clean = await InputValidator.sanitize_text(prompt_part.strip())
+        result = {"idea": idea, "prompt": prompt_clean}
         history.append(result["idea"])
         history = history[-self.config.pipeline.max_stored_ideas :]
         try:

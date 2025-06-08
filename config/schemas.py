@@ -32,9 +32,16 @@ class PipelineConfig:
 
 
 @dataclass
+class SecurityConfig:
+    token_expiry: int = Field(3600, ge=60, le=86400)
+    rate_limit: int = Field(60, ge=1, le=1000)
+
+
+@dataclass
 class Config:
     openai_api_key: str
     sonauto_api_key: str
     replicate_api_key: str
     api_timeout: int = Field(60, ge=30, le=600)
     pipeline: PipelineConfig = field(default_factory=PipelineConfig)
+    security: SecurityConfig = field(default_factory=SecurityConfig)

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from pydantic import ValidationError
-from .schemas import Config, PipelineConfig
+from .schemas import Config, PipelineConfig, SecurityConfig
 from .validator import ConfigError, validate_keys
 
 _CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs"
@@ -82,9 +82,18 @@ async def load_config(env: Optional[str] = None) -> Config:
         "sonauto_api_key": _decrypt(os.getenv("SONAUTO_API_KEY", top.get("sonauto_api_key", ""))),
         "replicate_api_key": _decrypt(os.getenv("REPLICATE_API_KEY", top.get("replicate_api_key", ""))),
     }
+    security = SecurityConfig(
+        token_expiry=int(os.getenv("SECURITY_TOKEN_EXPIRY", "3600")),
+        rate_limit=int(os.getenv("SECURITY_RATE_LIMIT", "60")),
+    )
     api_timeout = int(os.getenv("API_TIMEOUT", str(top.get("api_timeout", 60))))
     try:
-        cfg = Config(**keys, api_timeout=api_timeout, pipeline=pipeline)
+        cfg = Config(
+            **keys,
+            api_timeout=api_timeout,
+            pipeline=pipeline,
+            security=security,
+        )
     except ValidationError as exc:
         raise ConfigError(str(exc)) from exc
     validate_keys(cfg)

@@ -10,6 +10,7 @@ from utils import file_operations
 from utils.api_clients import http_post, http_get
 from utils.monitoring import collector, tracer
 from monitoring.structured_logger import get_logger
+from security.input_validator import InputValidator
 
 logger = get_logger(__name__)
 from exceptions import SonautoError, NetworkError
@@ -46,7 +47,7 @@ class MusicGeneratorService(MediaGeneratorInterface):
         raise NetworkError("Music generation timed out")
 
     async def generate(self, prompt: str, **kwargs) -> str:
-        prompt = sanitize_prompt(prompt)
+        prompt = await InputValidator.sanitize_text(sanitize_prompt(prompt))
         filename = f"music/sonauto_music_{int(time.time())}.mp3"
         loop = asyncio.get_event_loop(); start = loop.time()
         logger.info("music_generate_start")
