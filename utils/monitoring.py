@@ -8,6 +8,10 @@ from prometheus_client import Counter, Histogram, start_http_server
 
 from monitoring.metrics_collector import MetricsCollector
 from monitoring.performance_tracker import PerformanceTracker
+from monitoring.tracing import PipelineTracer
+from monitoring.business_metrics import BusinessMetrics
+from monitoring.anomaly_detector import AnomalyDetector
+from monitoring.structured_logger import get_logger
 
 API_RESPONSE_TIME = Histogram(
     "api_response_time_seconds", "API response times", ["operation"]
@@ -20,6 +24,10 @@ PIPELINE_FAILURE = Counter("pipeline_failure_total", "Failed pipeline runs")
 
 collector = MetricsCollector()
 tracker = PerformanceTracker()
+tracer = PipelineTracer()
+business_metrics = BusinessMetrics()
+detector = AnomalyDetector()
+logger = get_logger(__name__)
 health_checker: Any | None = None
 alert_manager: Any | None = None
 
@@ -33,7 +41,8 @@ async def start_health_server(config: Any, port: int) -> web.AppRunner:
     alert_manager = AlertManager(collector, health_checker, tracker)
 
     async def handler(_: web.Request) -> web.Response:
-        status = await health_checker.get_overall_health()
+        with tracer.trace_api_call("health", "check"):
+            status = await health_checker.get_overall_health()
         return web.json_response({"healthy": status.healthy})
 
     app = web.Application()
