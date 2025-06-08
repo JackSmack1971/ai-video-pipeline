@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -51,7 +52,34 @@ def test_api_timeout_bounds(monkeypatch):
 
 
 def test_pipeline_config_bounds():
-    with pytest.raises(ConfigError):
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
         PipelineConfig(default_video_duration=0)
-    with pytest.raises(ConfigError):
+    with pytest.raises(ValidationError):
         PipelineConfig(video_batch_large=11)
+
+
+def test_env_override(monkeypatch):
+    monkeypatch.setenv('OPENAI_API_KEY', 'sk-testopenai1234567890abcd')
+    monkeypatch.setenv('SONAUTO_API_KEY', 'sa-testsonauto1234567890')
+    monkeypatch.setenv('REPLICATE_API_KEY', 'r8_testreplicate1234567890')
+    monkeypatch.setenv('PIPELINE_PIPELINE_MAX_STORED_IDEAS', '9')
+    cfg = load_config()
+    assert cfg.pipeline.max_stored_ideas == 9
+
+
+def test_hot_reload(monkeypatch, tmp_path):
+    cfg_dir = tmp_path / 'cfg'
+    cfg_dir.mkdir()
+    (cfg_dir / 'base.json').write_text(json.dumps({'max_stored_ideas': 6}))
+    (cfg_dir / 'dev.json').write_text(json.dumps({'max_stored_ideas': 7}))
+    monkeypatch.setattr('config.loader._CONFIG_PATH', cfg_dir)
+    monkeypatch.setenv('OPENAI_API_KEY', 'sk-testopenai1234567890abcd')
+    monkeypatch.setenv('SONAUTO_API_KEY', 'sa-testsonauto1234567890')
+    monkeypatch.setenv('REPLICATE_API_KEY', 'r8_testreplicate1234567890')
+    monkeypatch.setenv('PIPELINE_ENV', 'dev')
+    cfg1 = load_config()
+    (cfg_dir / 'dev.json').write_text(json.dumps({'max_stored_ideas': 8}))
+    cfg2 = reload_config()
+    assert cfg1.pipeline.max_stored_ideas != cfg2.pipeline.max_stored_ideas

@@ -3,7 +3,11 @@ import asyncio
 from pathlib import Path
 from typing import List
 
-from config import load_config, get_pipeline_config, PipelineConfig
+from config import (
+    load_config_async,
+    get_pipeline_config,
+    PipelineConfig,
+)
 from pipeline import ContentPipeline
 from services.factory import create_services
 from utils.logging_config import setup_logging
@@ -21,7 +25,7 @@ def _load_custom_config(path: str) -> PipelineConfig:
 
 async def _run_generate(args: argparse.Namespace) -> None:
     setup_logging()
-    cfg = load_config()
+    cfg = await load_config_async()
     if args.config_file:
         cfg.pipeline = _load_custom_config(args.config_file)
     cfg.pipeline.default_video_duration = args.duration
