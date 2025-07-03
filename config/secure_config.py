@@ -13,28 +13,28 @@ class SecureConfig:
         if os.path.exists(secret_file):
             try:
                 value = Path(secret_file).read_text().strip()
-                logger.info(f"Loaded secret {secret_name} from Docker secrets")
+                logger.info("Loaded secret from Docker secrets")
                 return value
             except Exception as e:
-                logger.error(f"Failed to read Docker secret {secret_name}: {e}")
+                logger.error("Failed to read Docker secret")
         # Priority 2: Environment variable pointing to file
         env_file_var = f"{secret_name.upper()}_FILE"
         if env_file_var in os.environ:
             try:
                 file_path = os.environ[env_file_var]
                 value = Path(file_path).read_text().strip()
-                logger.info(f"Loaded secret {secret_name} from file via {env_file_var}")
+                logger.info("Loaded secret from file")
                 return value
             except Exception as e:
-                logger.error(f"Failed to read secret file for {secret_name}: {e}")
+                logger.error("Failed to read secret file")
         # Priority 3: Direct environment variable (fallback, less secure)
         env_value = os.getenv(secret_name.upper())
         if env_value:
             logger.warning(
-                f"Using direct environment variable for {secret_name} - consider using secrets"
+                "Using direct environment variable; consider Docker secrets"
             )
             return env_value
-        logger.error(f"Secret {secret_name} not found in any location")
+        logger.error("Secret not found in any location")
         return ""
 
     @staticmethod
@@ -42,5 +42,5 @@ class SecureConfig:
         """Get a required secret, raise exception if not found."""
         value = SecureConfig.get_secret(secret_name)
         if not value:
-            raise ValueError(f"Required secret {secret_name} not found")
+            raise ValueError("Required secret not found")
         return value

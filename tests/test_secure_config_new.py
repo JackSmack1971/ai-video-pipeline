@@ -42,3 +42,14 @@ def test_get_required_secret_missing(monkeypatch):
     monkeypatch.delenv("MISSING_SECRET", raising=False)
     with pytest.raises(ValueError):
         SecureConfig.get_required_secret("missing_secret")
+
+
+def test_no_secret_name_logged(tmp_path, monkeypatch, caplog):
+    secret_name = "log_secret"
+    secret_file = tmp_path / "sec.txt"
+    secret_file.write_text("val")
+    monkeypatch.setenv(f"{secret_name.upper()}_FILE", str(secret_file))
+    caplog.set_level("INFO")
+    SecureConfig.get_secret(secret_name)
+    messages = "".join(record.getMessage() for record in caplog.records)
+    assert secret_name not in messages
