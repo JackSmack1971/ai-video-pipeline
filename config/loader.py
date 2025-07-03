@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from .schemas import Config, PipelineConfig, SecurityConfig, ComplianceConfig
 from .validator import ConfigError, validate_keys
 from utils.secure_config import SecureConfigError, decrypt_value
+from .secure_config import SecureConfig
 
 _CONFIG_PATH = Path(__file__).resolve().parents[1] / "configs"
 _cached: Optional[Config] = None
@@ -73,9 +74,9 @@ async def load_config(env: Optional[str] = None) -> Config:
         if k.startswith("PIPELINE_") and not k.startswith("PIPELINE_PIPELINE_")
     }
     keys = {
-        "openai_api_key": _decrypt(os.getenv("OPENAI_API_KEY", top.get("openai_api_key", ""))),
-        "sonauto_api_key": _decrypt(os.getenv("SONAUTO_API_KEY", top.get("sonauto_api_key", ""))),
-        "replicate_api_key": _decrypt(os.getenv("REPLICATE_API_KEY", top.get("replicate_api_key", ""))),
+        "openai_api_key": _decrypt(SecureConfig.get_secret("openai_api_key")),
+        "sonauto_api_key": _decrypt(SecureConfig.get_secret("sonauto_api_key")),
+        "replicate_api_key": _decrypt(SecureConfig.get_secret("replicate_api_key")),
     }
     if not all(keys.values()):
         raise ConfigError("Missing API keys")

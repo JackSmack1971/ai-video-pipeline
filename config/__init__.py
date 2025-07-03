@@ -11,6 +11,7 @@ from .loader import (
     enable_sighup_reload,
 )
 from .validator import ConfigError, validate_keys
+from .secure_config import SecureConfig
 
 
 async def load_config_async(env: str | None = None) -> Config:
@@ -69,6 +70,7 @@ __all__ = [
     "PipelineConfig",
     "SecurityConfig",
     "ComplianceConfig",
+    "SecureConfig",
     "load_config",
     "reload_config",
     "load_pipeline_config",
